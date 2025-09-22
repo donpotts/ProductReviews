@@ -1,0 +1,11 @@
+Id,ProductId,CustomerName,CustomerEmail,Rating,Title,ReviewText,ReviewDate,IsVerifiedPurchase,HelpfulVotes,CreatedDate,ModifiedDate,Notes,UserId
+1,1,John Smith,john.smith@email.com,5,Excellent for development,"This FlowBook Pro is perfect for software development. The F7 chip handles everything I throw at it.",2024-01-10,true,15,2024-01-10,2024-01-10,Verified developer review,2
+2,1,Sarah Johnson,sarah.j@email.com,4,Great laptop but pricey,"Love the performance and build quality, but it's quite expensive for what you get.",2024-01-08,true,8,2024-01-08,2024-01-08,Price-conscious review,3
+3,2,Mike Chen,mike.chen@email.com,5,Perfect for business travel,"Lightweight and powerful. Battery lasts all day during business trips.",2024-01-12,true,12,2024-01-12,2024-01-12,Business user feedback,4
+4,3,Emily Davis,emily.d@email.com,5,Amazing camera quality,"The camera system is incredible. Photos look professional even in low light.",2024-01-05,true,22,2024-01-05,2024-01-05,Photography enthusiast,5
+5,3,Alex Brown,alex.brown@email.com,4,Great phone overall,"Solid performance and great design. Only wish the battery lasted longer.",2024-01-07,true,9,2024-01-07,2024-01-07,General user experience,6
+6,4,Lisa Wilson,lisa.w@email.com,5,Best smartphone I've owned,"QuantumPhone really nailed it with this one. Fast, beautiful display, great cameras.",2024-01-14,true,18,2024-01-14,2024-01-14,Long-term user review,7
+7,5,David Kim,david.kim@email.com,5,Outstanding noise cancellation,"These headphones are a game changer for my daily commute. Comfort is also top-notch.",2024-01-09,true,25,2024-01-09,2024-01-09,Commuter use case,8
+8,6,Gaming Pro,gamer@email.com,5,Beast of a gaming machine,"Runs all latest games at max settings. The 240Hz display is buttery smooth.",2024-01-11,true,31,2024-01-11,2024-01-11,Gaming performance review,9
+9,7,Designer Jane,designer@email.com,5,Perfect for creative work,"Color accuracy is spot-on for design work. The 4K resolution makes everything crisp.",2024-01-13,true,19,2024-01-13,2024-01-13,Creative professional use,10
+10,8,Art Student,student@email.com,4,Great tablet for drawing,"The stylus is responsive and the display quality is excellent for digital art.",2024-01-15,true,14,2024-01-15,2024-01-15,Student artist feedback,11

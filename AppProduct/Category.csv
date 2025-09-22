@@ -1,0 +1,9 @@
+Id,Name,Description,IconUrl,ParentCategoryId,CreatedDate,ModifiedDate,Notes,UserId
+1,Electronics,Electronic devices and gadgets,/icons/electronics.svg,,2024-01-01,2024-01-01,Root category for all electronic products,1
+2,Computers,Portable and desktop computers,/icons/computer.svg,1,2024-01-01,2024-01-01,Computing devices subcategory,1
+3,Gaming Computers,High-performance gaming computers,/icons/gaming-computer.svg,2,2024-01-01,2024-01-01,Specialized gaming hardware,1
+4,Business Computers,Professional computers for business,/icons/business-computer.svg,2,2024-01-01,2024-01-01,Enterprise and professional use,1
+5,Mobile Devices,Smartphones and tablets,/icons/mobile.svg,1,2024-01-01,2024-01-01,Portable mobile technology,1
+6,Audio Equipment,Audio devices and accessories,/icons/audio.svg,1,2024-01-01,2024-01-01,Sound and music equipment,1
+7,Headphones,Over-ear and in-ear audio devices,/icons/headphones.svg,6,2024-01-01,2024-01-01,Personal audio devices,1
+8,Speakers,Bluetooth and wired speakers,/icons/speakers.svg,6,2024-01-01,2024-01-01,Audio output devices,1

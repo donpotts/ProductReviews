@@ -1,0 +1,13 @@
+Id,Name,Color,Description,CreatedDate,ModifiedDate,Notes,UserId
+1,Premium,#FFD700,High-end luxury products,2024-01-01,2024-01-01,Top-tier product classification,1
+2,Budget,#32CD32,Affordable value options,2024-01-01,2024-01-01,Cost-effective choices,1
+3,Gaming,#FF4500,Optimized for gaming performance,2024-01-01,2024-01-01,Gaming-focused products,1
+4,Business,#4169E1,Professional and business focused,2024-01-01,2024-01-01,Enterprise and professional use,1
+5,Student,#9370DB,Perfect for educational use,2024-01-01,2024-01-01,Academic and learning focused,1
+6,Creative,#FF69B4,Designed for creative professionals,2024-01-01,2024-01-01,Content creation oriented,1
+7,Portable,#20B2AA,Lightweight and portable,2024-01-01,2024-01-01,Mobility and travel friendly,1
+8,Eco Friendly,#228B22,Environmentally conscious products,2024-01-01,2024-01-01,Sustainable and green technology,1
+9,New Release,#DC143C,Recently launched products,2024-01-01,2024-01-01,Latest product offerings,1
+10,Best Seller,#FF8C00,Top selling items,2024-01-01,2024-01-01,Popular customer favorites,1
+11,Editor's Choice,#4B0082,Staff recommended products,2024-01-01,2024-01-01,Curated recommendations,1
+12,Limited Edition,#8B4513,Special limited releases,2024-01-01,2024-01-01,Exclusive product variants,1

@@ -1,0 +1,107 @@
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject HttpClient HttpClient
+
+<EditForm Model="@record" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">Add Brand</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
+            <MudTextField @bind-Value="record.Description" For="@(() => record.Description)" Label="Description" />
+            <MudTextField @bind-Value="record.LogoUrl" For="@(() => record.LogoUrl)" Label="LogoUrl" />
+            <MudTextField @bind-Value="record.Website" For="@(() => record.Website)" Label="Website" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.EstablishedDate" For="@(() => record.EstablishedDate)" Label="EstablishedDate" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />
+            <MudTextField @bind-Value="record.Notes" For="@(() => record.Notes)" Label="Notes" />
+            <MudNumericField @bind-Value="record.UserId" For="@(() => record.UserId)" Label="UserId" />
+
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="OnCancel">Cancel</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary">Add</MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance? MudDialog { get; set; }
+
+    private Brand record = new();
+
+    private string GetAbsoluteUri(string uri)
+    {
+        if (!uri.StartsWith("/"))
+        {
+            return uri;
+        }
+
+        var baseUri = HttpClient.BaseAddress;
+
+        if (baseUri == null)
+        {
+            throw new Exception("Unable to determine base address");
+        }
+
+        Uri absolute = new(baseUri, uri);
+
+        return absolute.ToString();
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+        }
+        catch(Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog?.Cancel();
+    }
+
+    private async void OnSubmit()
+    {
+        try
+        {
+            await AppService.InsertBrandAsync(record);
+            MudDialog?.Close();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task<string?> UploadImageAsync(IBrowserFile file, int maxWidth = 256, int maxHeight = 256)
+    {
+        if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
+        {
+            Snackbar.Add("Only PNG or JPEG images can be uploaded.", Severity.Error);
+            return null;
+        }
+
+        var image = await file.RequestImageFileAsync("image/png", maxWidth, maxHeight);
+
+        try
+        {
+            return await AppService.UploadImageAsync(image);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+
+        return null;
+    }
+}

@@ -1,0 +1,116 @@
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject HttpClient HttpClient
+
+<EditForm Model="@record" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">Add Tag</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
+            <MudTextField @bind-Value="record.Color" For="@(() => record.Color)" Label="Color" />
+            <MudTextField @bind-Value="record.Description" For="@(() => record.Description)" Label="Description" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
+            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />
+            <MudTextField @bind-Value="record.Notes" For="@(() => record.Notes)" Label="Notes" />
+            <MudNumericField @bind-Value="record.UserId" For="@(() => record.UserId)" Label="UserId" />
+            <MudSelect T="long?" Label="Product" MultiSelection="true" @bind-SelectedValues="productValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => productArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var product in productArray ?? Enumerable.Empty<Product>())
+                {
+                    <MudSelectItem T="long?" Value="@product.Id">@product.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="OnCancel">Cancel</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary">Add</MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance? MudDialog { get; set; }
+
+    private Product[]? productArray;
+    private IEnumerable<long?>? productValues;
+    private Tag record = new();
+
+    private string GetAbsoluteUri(string uri)
+    {
+        if (!uri.StartsWith("/"))
+        {
+            return uri;
+        }
+
+        var baseUri = HttpClient.BaseAddress;
+
+        if (baseUri == null)
+        {
+            throw new Exception("Unable to determine base address");
+        }
+
+        Uri absolute = new(baseUri, uri);
+
+        return absolute.ToString();
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        try
+        {
+            productArray = await AppService.ListProductAsync();
+            productValues = record?.Product?.Select(x => x.Id).ToHashSet() ?? [];
+        }
+        catch(Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog?.Cancel();
+    }
+
+    private async void OnSubmit()
+    {
+        try
+        {
+            record.Product = productValues?.Select(x => new Product { Id = x }).ToList();
+            await AppService.InsertTagAsync(record);
+            MudDialog?.Close();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task<string?> UploadImageAsync(IBrowserFile file, int maxWidth = 256, int maxHeight = 256)
+    {
+        if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
+        {
+            Snackbar.Add("Only PNG or JPEG images can be uploaded.", Severity.Error);
+            return null;
+        }
+
+        var image = await file.RequestImageFileAsync("image/png", maxWidth, maxHeight);
+
+        try
+        {
+            return await AppService.UploadImageAsync(image);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+
+        return null;
+    }
+}

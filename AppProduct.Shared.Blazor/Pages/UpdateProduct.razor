@@ -1,0 +1,190 @@
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject HttpClient HttpClient
+
+@if (record == null)
+{
+    <MudDialog>
+        <TitleContent>
+            <MudText Typo="Typo.h6">Update Product</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudText>Loading...</MudText>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="OnCancel">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Disabled="true">Update</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+else
+{
+    <EditForm Model="@record" OnValidSubmit="@OnSubmit">
+        <DataAnnotationsValidator />
+        <MudDialog>
+            <TitleContent>
+                <MudText Typo="Typo.h6">Update Product</MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudNumericField @bind-Value="record.Id" For="@(() => record.Id)" Label="Id" ReadOnly="true" />
+                <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
+                <MudTextField @bind-Value="record.Description" For="@(() => record.Description)" Label="Description" />
+                <MudTextField @bind-Value="record.DetailedSpecs" For="@(() => record.DetailedSpecs)" Label="DetailedSpecs" />
+                <MudNumericField @bind-Value="record.Price" For="@(() => record.Price)" Label="Price" />
+                <MudTextField @bind-Value="record.ImageUrl" For="@(() => record.ImageUrl)" Label="ImageUrl" />
+                <MudCheckBox @bind-Checked="record.InStock" For="@(() => record.InStock)" Label="InStock"></MudCheckBox>
+                <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ReleaseDate" For="@(() => record.ReleaseDate)" Label="ReleaseDate" />
+                <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
+                <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />
+                <MudTextField @bind-Value="record.Notes" For="@(() => record.Notes)" Label="Notes" />
+                <MudNumericField @bind-Value="record.UserId" For="@(() => record.UserId)" Label="UserId" />
+                <MudSelect T="long?" Label="Category" MultiSelection="true" @bind-SelectedValues="categoryValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => categoryArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var category in categoryArray ?? Enumerable.Empty<Category>())
+                    {
+                        <MudSelectItem T="long?" Value="@category.Id">@category.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="long?" Label="Brand" MultiSelection="true" @bind-SelectedValues="brandValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => brandArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var brand in brandArray ?? Enumerable.Empty<Brand>())
+                    {
+                        <MudSelectItem T="long?" Value="@brand.Id">@brand.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="long?" Label="Feature" MultiSelection="true" @bind-SelectedValues="featureValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => featureArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var feature in featureArray ?? Enumerable.Empty<Feature>())
+                    {
+                        <MudSelectItem T="long?" Value="@feature.Id">@feature.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="long?" Label="Tag" MultiSelection="true" @bind-SelectedValues="tagValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => tagArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var tag in tagArray ?? Enumerable.Empty<Tag>())
+                    {
+                        <MudSelectItem T="long?" Value="@tag.Id">@tag.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="long?" Label="ProductReview" MultiSelection="true" @bind-SelectedValues="productReviewValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => productReviewArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Title)))" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var productReview in productReviewArray ?? Enumerable.Empty<ProductReview>())
+                    {
+                        <MudSelectItem T="long?" Value="@productReview.Id">@productReview.Title</MudSelectItem>
+                    }
+                </MudSelect>
+
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="OnCancel">Cancel</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary">Update</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    [CascadingParameter]
+    MudDialogInstance? MudDialog { get; set; }
+
+    private Category[]? categoryArray;
+    private IEnumerable<long?>? categoryValues;
+    private Brand[]? brandArray;
+    private IEnumerable<long?>? brandValues;
+    private Feature[]? featureArray;
+    private IEnumerable<long?>? featureValues;
+    private Tag[]? tagArray;
+    private IEnumerable<long?>? tagValues;
+    private ProductReview[]? productReviewArray;
+    private IEnumerable<long?>? productReviewValues;
+    private Product? record;
+
+    private string GetAbsoluteUri(string uri)
+    {
+        if (!uri.StartsWith("/"))
+        {
+            return uri;
+        }
+
+        var baseUri = HttpClient.BaseAddress;
+
+        if (baseUri == null)
+        {
+            throw new Exception("Unable to determine base address");
+        }
+
+        Uri absolute = new(baseUri, uri);
+
+        return absolute.ToString();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            categoryArray = await AppService.ListCategoryAsync();
+            brandArray = await AppService.ListBrandAsync();
+            featureArray = await AppService.ListFeatureAsync();
+            tagArray = await AppService.ListTagAsync();
+            productReviewArray = await AppService.ListProductReviewAsync();
+            record = await AppService.GetProductByIdAsync(Id);
+            categoryValues = record?.Category?.Select(x => x.Id).ToHashSet() ?? [];
+            brandValues = record?.Brand?.Select(x => x.Id).ToHashSet() ?? [];
+            featureValues = record?.Feature?.Select(x => x.Id).ToHashSet() ?? [];
+            tagValues = record?.Tag?.Select(x => x.Id).ToHashSet() ?? [];
+            productReviewValues = record?.ProductReview?.Select(x => x.Id).ToHashSet() ?? [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void OnCancel()
+    {
+        MudDialog?.Cancel();
+    }
+
+    private async void OnSubmit()
+    {
+        if (record == null)
+        {
+            return;
+        }
+
+        try
+        {
+            record.Category = categoryValues?.Select(x => new Category { Id = x }).ToList();
+            record.Brand = brandValues?.Select(x => new Brand { Id = x }).ToList();
+            record.Feature = featureValues?.Select(x => new Feature { Id = x }).ToList();
+            record.Tag = tagValues?.Select(x => new Tag { Id = x }).ToList();
+            record.ProductReview = productReviewValues?.Select(x => new ProductReview { Id = x }).ToList();
+            await AppService.UpdateProductAsync(Id, record);
+            MudDialog?.Close();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task<string?> UploadImageAsync(IBrowserFile file, int maxWidth = 256, int maxHeight = 256)
+    {
+        if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
+        {
+            Snackbar.Add("Only PNG or JPEG images can be uploaded.", Severity.Error);
+            return null;
+        }
+
+        var image = await file.RequestImageFileAsync("image/png", maxWidth, maxHeight);
+
+        try
+        {
+            return await AppService.UploadImageAsync(image);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+
+        return null;
+    }
+}

@@ -1,0 +1,122 @@
+[
+  {
+    "Id": 1,
+    "Name": "Premium",
+    "Color": "#FFD700",
+    "Description": "High-end luxury products",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Top-tier product classification",
+    "UserId": 1
+  },
+  {
+    "Id": 2,
+    "Name": "Budget",
+    "Color": "#32CD32",
+    "Description": "Affordable value options",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Cost-effective choices",
+    "UserId": 1
+  },
+  {
+    "Id": 3,
+    "Name": "Gaming",
+    "Color": "#FF4500",
+    "Description": "Optimized for gaming performance",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Gaming-focused products",
+    "UserId": 1
+  },
+  {
+    "Id": 4,
+    "Name": "Business",
+    "Color": "#4169E1",
+    "Description": "Professional and business focused",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Enterprise and professional use",
+    "UserId": 1
+  },
+  {
+    "Id": 5,
+    "Name": "Student",
+    "Color": "#9370DB",
+    "Description": "Perfect for educational use",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Academic and learning focused",
+    "UserId": 1
+  },
+  {
+    "Id": 6,
+    "Name": "Creative",
+    "Color": "#FF69B4",
+    "Description": "Designed for creative professionals",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Content creation oriented",
+    "UserId": 1
+  },
+  {
+    "Id": 7,
+    "Name": "Portable",
+    "Color": "#20B2AA",
+    "Description": "Lightweight and portable",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Mobility and travel friendly",
+    "UserId": 1
+  },
+  {
+    "Id": 8,
+    "Name": "Eco Friendly",
+    "Color": "#228B22",
+    "Description": "Environmentally conscious products",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Sustainable and green technology",
+    "UserId": 1
+  },
+  {
+    "Id": 9,
+    "Name": "New Release",
+    "Color": "#DC143C",
+    "Description": "Recently launched products",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Latest product offerings",
+    "UserId": 1
+  },
+  {
+    "Id": 10,
+    "Name": "Best Seller",
+    "Color": "#FF8C00",
+    "Description": "Top selling items",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Popular customer favorites",
+    "UserId": 1
+  },
+  {
+    "Id": 11,
+    "Name": "Editor\u0027s Choice",
+    "Color": "#4B0082",
+    "Description": "Staff recommended products",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Curated recommendations",
+    "UserId": 1
+  },
+  {
+    "Id": 12,
+    "Name": "Limited Edition",
+    "Color": "#8B4513",
+    "Description": "Special limited releases",
+    "CreatedDate": "2024-01-01T00:00:00",
+    "ModifiedDate": "2024-01-01T00:00:00",
+    "Notes": "Exclusive product variants",
+    "UserId": 1
+  }
+]

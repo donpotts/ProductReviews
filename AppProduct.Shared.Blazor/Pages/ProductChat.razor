@@ -1,0 +1,112 @@
+@page "/productchat"
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<PageTitle>Product Chat</PageTitle>
+
+<style>
+    .pulse-spin { animation: pulse 1s ease-in-out infinite; }
+    @@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    .ask-enabled { filter: none; opacity: 1; transition: opacity .15s ease; }
+    .ask-disabled { opacity: .45; transition: opacity .15s ease; }
+    .chat-spinner { height:20px; width:20px; }
+</style>
+
+<MudStack Class="mt-4" Spacing="2">
+    <MudPaper Class="pa-4" Elevation="2">
+        <MudText Typo="Typo.h5">Product Knowledge Chat</MudText>
+        <MudText Typo="Typo.caption" Class="mb-2">Ask questions strictly about products. The assistant refuses anything else.</MudText>
+        <MudTextField @bind-Value="userQuestion"
+                      Label="Your question"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Lines="3"
+                      Immediate="true"
+                      @onkeydown="HandleKeyDown" />
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudButton Class="@(CanAsk ? "ask-enabled" : "ask-disabled")"
+                       Disabled="loading || !CanAsk"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="AskAsync"
+                       StartIcon="@Icons.Material.Filled.Send">
+                @(loading ? "Sending..." : "Ask")
+            </MudButton>
+            @if (loading)
+            {
+                <MudProgressCircular Indeterminate="true" Class="ml-2 pulse-spin chat-spinner" Color="Color.Primary" />
+            }
+        </MudStack>
+        <MudText Typo="Typo.caption" Class="mt-1">Press Enter to send (Shift+Enter for newline).</MudText>
+    </MudPaper>
+
+    @if (responses.Any())
+    {
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudStack Spacing="3">
+                @foreach (var r in responses)
+                {
+                    var expanded = responses[0] == r; // auto-expand newest inserted at index 0
+                    <MudExpansionPanels>
+                        <MudExpansionPanel Text="@($"Q: {r.Question}")" Expanded="@expanded">
+                            <MudText Typo="Typo.body1">@((MarkupString)r.AnswerHtml)</MudText>
+                            @if (r.Sources.Any())
+                            {
+                                <MudDivider Class="my-2" />
+                                <MudText Typo="Typo.subtitle2">Sources:</MudText>
+                                <ul class="mud-typography-body2">
+                                    @foreach (var s in r.Sources)
+                                    {
+                                        <li>@s.Id - @s.Name (@s.Price)</li>
+                                    }
+                                </ul>
+                            }
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+            </MudStack>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private string? userQuestion;
+    private bool loading;
+    private List<ChatRecord> responses = new();
+    private bool CanAsk => !string.IsNullOrWhiteSpace(userQuestion);
+
+    private async Task AskAsync()
+    {
+        if (loading || !CanAsk) return;
+        var question = userQuestion!.Trim();
+        if (question.Length == 0) return;
+        loading = true;
+        StateHasChanged();
+        try
+        {
+            var (answer, sources) = await AppService.AskProductChatAsync(question);
+            var safe = System.Net.WebUtility.HtmlEncode(answer).Replace("\n", "<br/>");
+            responses.Insert(0, new ChatRecord(question, safe, sources.ToList()));
+            userQuestion = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await AskAsync();
+        }
+    }
+
+    private record ChatRecord(string Question, string AnswerHtml, List<AppService.ProductSource> Sources);
+}

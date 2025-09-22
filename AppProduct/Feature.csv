@@ -1,0 +1,16 @@
+Id,Name,Description,IconUrl,Type,CreatedDate,ModifiedDate,Notes,UserId
+1,Memory,System memory capacity,/icons/memory.svg,Numeric,2024-01-01,2024-01-01,RAM specifications,1
+2,Storage,Storage capacity,/icons/storage.svg,Numeric,2024-01-01,2024-01-01,Hard drive and SSD capacity,1
+3,Wireless Charging,Supports wireless charging capability,/icons/wireless.svg,Boolean,2024-01-01,2024-01-01,Contactless charging feature,1
+4,Display Size,Screen size in inches,/icons/display.svg,Numeric,2024-01-01,2024-01-01,Monitor or screen dimensions,1
+5,Color,Product color option,/icons/color.svg,Text,2024-01-01,2024-01-01,Available color variants,1
+6,Battery Life,Battery duration in hours,/icons/battery.svg,Numeric,2024-01-01,2024-01-01,Power consumption specs,1
+7,Weight,Product weight in pounds,/icons/weight.svg,Numeric,2024-01-01,2024-01-01,Physical weight measurement,1
+8,Processor,CPU type and specifications,/icons/processor.svg,Text,2024-01-01,2024-01-01,Central processing unit details,1
+9,Graphics,GPU specifications,/icons/graphics.svg,Text,2024-01-01,2024-01-01,Graphics processing capabilities,1
+10,Operating System,Pre-installed OS,/icons/os.svg,Text,2024-01-01,2024-01-01,Software platform,1
+11,Bluetooth,Bluetooth connectivity support,/icons/bluetooth.svg,Boolean,2024-01-01,2024-01-01,Wireless communication feature,1
+12,WiFi,WiFi network connectivity,/icons/wifi.svg,Boolean,2024-01-01,2024-01-01,Wireless internet capability,1
+13,Noise Cancelling,Active noise cancellation technology,/icons/noise-cancel.svg,Boolean,2024-01-01,2024-01-01,Audio noise reduction feature,1
+14,Water Resistance,Water protection rating,/icons/water.svg,Text,2024-01-01,2024-01-01,Liquid damage protection,1
+15,Camera Quality,Camera resolution and features,/icons/camera.svg,Text,2024-01-01,2024-01-01,Photography capabilities,1
