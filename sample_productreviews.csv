@@ -1,0 +1,6 @@
+ProductId,CustomerName,CustomerEmail,Rating,Title,ReviewText,ReviewDate,IsVerifiedPurchase,HelpfulVotes,Notes,UserId
+1,John Smith,john.smith@email.com,5,Amazing phone!,This iPhone 15 Pro is absolutely incredible. The camera quality is outstanding and the titanium build feels premium.,2024-01-15,true,12,Great customer feedback,1
+1,Sarah Johnson,sarah.j@email.com,4,Good but pricey,Really nice phone with great features but quite expensive. Camera is excellent for photography.,2024-01-20,true,8,Price sensitivity noted,1
+2,Mike Wilson,mike.wilson@email.com,5,Perfect for work,This MacBook Pro handles everything I throw at it. Video editing is smooth and battery life is great.,2024-02-01,true,15,Professional user,1
+3,Emily Davis,emily.davis@email.com,5,Best earbuds ever,Sound quality is amazing and noise cancellation works perfectly. Comfortable for long wear.,2024-01-25,true,20,Audiophile customer,1
+4,Alex Brown,alex.brown@email.com,4,Great tablet,Perfect for digital art and note-taking. Screen is beautiful and Apple Pencil support is excellent.,2024-02-10,true,6,Creative professional,1

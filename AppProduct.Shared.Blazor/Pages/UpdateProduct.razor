@@ -32,7 +32,7 @@ else
                 <MudTextField @bind-Value="record.DetailedSpecs" For="@(() => record.DetailedSpecs)" Label="DetailedSpecs" />
                 <MudNumericField @bind-Value="record.Price" For="@(() => record.Price)" Label="Price" />
                 <MudTextField @bind-Value="record.ImageUrl" For="@(() => record.ImageUrl)" Label="ImageUrl" />
-                <MudCheckBox @bind-Checked="record.InStock" For="@(() => record.InStock)" Label="InStock"></MudCheckBox>
+                <MudCheckBox @bind-Value="record.InStock" For="@(() => record.InStock)" Label="InStock"></MudCheckBox>
                 <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ReleaseDate" For="@(() => record.ReleaseDate)" Label="ReleaseDate" />
                 <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
                 <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />

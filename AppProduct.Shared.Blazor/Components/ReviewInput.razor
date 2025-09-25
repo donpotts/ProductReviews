@@ -1,0 +1,236 @@
+@using MudBlazor
+@inject AppService AppService
+@inject ISnackbar Snackbar
+
+<MudCard Elevation="2" Class="@Class">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">
+                @(IsEditing ? "Edit Your Review" : "Write a Review")
+            </MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    
+    <MudCardContent>
+        <MudStack Spacing="3">
+            @* Star Rating Input *@
+            <MudStack>
+                <MudText Typo="Typo.subtitle1">Rating *</MudText>
+                <StarRating @bind-Value="@Review.Rating"
+                           ShowRatingText="true"
+                           Size="Size.Large" />
+                @if (ShowValidationErrors && (!Review.Rating.HasValue || Review.Rating.Value < 1))
+                {
+                    <MudText Color="Color.Error" Typo="Typo.caption">Please select a rating</MudText>
+                }
+            </MudStack>
+            
+            @* Review Title *@
+            <MudTextField @bind-Value="@Review.Title"
+                         Label="Review Title"
+                         Placeholder="Summarize your experience"
+                         MaxLength="200"
+                         Counter="200"
+                         Variant="Variant.Outlined" />
+            
+            @* Review Text *@
+            <MudTextField @bind-Value="@Review.ReviewText"
+                         Label="Your Review"
+                         Placeholder="Share details about your experience with this product..."
+                         Lines="5"
+                         MaxLength="2000"
+                         Counter="2000"
+                         Variant="Variant.Outlined" />
+            
+            @* Customer Information (if not logged in user) *@
+            @if (!IsUserLoggedIn)
+            {
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="@Review.CustomerName"
+                                     Label="Your Name *"
+                                     Variant="Variant.Outlined"
+                                     Required="true" />
+                        @if (ShowValidationErrors && string.IsNullOrWhiteSpace(Review.CustomerName))
+                        {
+                            <MudText Color="Color.Error" Typo="Typo.caption">Name is required</MudText>
+                        }
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="@Review.CustomerEmail"
+                                     Label="Email Address *"
+                                     Variant="Variant.Outlined"
+                                     InputType="InputType.Email"
+                                     Required="true" />
+                        @if (ShowValidationErrors && !IsValidEmail(Review.CustomerEmail))
+                        {
+                            <MudText Color="Color.Error" Typo="Typo.caption">Valid email is required</MudText>
+                        }
+                    </MudItem>
+                </MudGrid>
+            }
+            
+            @* Verification Checkbox *@
+            @if (AllowVerifiedPurchase)
+            {
+                <MudCheckBox @bind-Value="@Review.IsVerifiedPurchase"
+                           Label="I purchased this product (Verified Purchase)"
+                           Color="Color.Success" />
+            }
+            
+            @* Terms and Privacy *@
+            <MudStack Row="true" AlignItems="AlignItems.Start">
+                <MudCheckBox @bind-Value="@AcceptTerms" Color="Color.Primary" />
+                <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                    I agree that my review may be published and displayed publicly. 
+                    I understand that I can edit or delete my review later.
+                </MudText>
+            </MudStack>
+            @if (ShowValidationErrors && !AcceptTerms)
+            {
+                <MudText Color="Color.Error" Typo="Typo.caption">Please accept the terms to continue</MudText>
+            }
+        </MudStack>
+    </MudCardContent>
+    
+    <MudCardActions>
+        <MudSpacer />
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton OnClick="@OnCancel" 
+                       Disabled="@IsSubmitting">
+                Cancel
+            </MudButton>
+        }
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   OnClick="@SubmitReview"
+                   Disabled="@IsSubmitting"
+                   StartIcon="@(IsSubmitting ? null : Icons.Material.Filled.Send)">
+            @if (IsSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                <span class="ml-2">@(IsEditing ? "Updating..." : "Submitting...")</span>
+            }
+            else
+            {
+                @(IsEditing ? "Update Review" : "Submit Review")
+            }
+        </MudButton>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    [Parameter] public long ProductId { get; set; }
+    [Parameter] public ProductReview? ExistingReview { get; set; }
+    [Parameter] public EventCallback<ProductReview> OnReviewSubmitted { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool AllowVerifiedPurchase { get; set; } = true;
+    [Parameter] public bool IsUserLoggedIn { get; set; } = false;
+    [Parameter] public string Class { get; set; } = "";
+
+    private ProductReview Review = new();
+    private bool IsEditing => ExistingReview != null;
+    private bool IsSubmitting = false;
+    private bool ShowValidationErrors = false;
+    private bool AcceptTerms = false;
+
+    protected override void OnParametersSet()
+    {
+        if (ExistingReview != null)
+        {
+            // Copy existing review for editing
+            Review = new ProductReview
+            {
+                Id = ExistingReview.Id,
+                ProductId = ExistingReview.ProductId,
+                CustomerName = ExistingReview.CustomerName,
+                CustomerEmail = ExistingReview.CustomerEmail,
+                Rating = ExistingReview.Rating,
+                Title = ExistingReview.Title,
+                ReviewText = ExistingReview.ReviewText,
+                IsVerifiedPurchase = ExistingReview.IsVerifiedPurchase,
+                ReviewDate = ExistingReview.ReviewDate,
+                HelpfulVotes = ExistingReview.HelpfulVotes
+            };
+            AcceptTerms = true; // Already accepted for existing reviews
+        }
+        else
+        {
+            // New review
+            Review = new ProductReview
+            {
+                ProductId = ProductId,
+                ReviewDate = DateTime.UtcNow,
+                IsVerifiedPurchase = false,
+                HelpfulVotes = 0
+            };
+        }
+    }
+
+    private async Task SubmitReview()
+    {
+        ShowValidationErrors = true;
+        
+        if (!IsValidReview())
+        {
+            Snackbar.Add("Please fill in all required fields", Severity.Warning);
+            return;
+        }
+
+        IsSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            ProductReview savedReview;
+            
+            if (IsEditing)
+            {
+                await AppService.UpdateProductReviewAsync(Review.Id!.Value, Review);
+                savedReview = Review;
+                Snackbar.Add("Review updated successfully!", Severity.Success);
+            }
+            else
+            {
+                savedReview = await AppService.InsertProductReviewAsync(Review) ?? Review;
+                Snackbar.Add("Review submitted successfully!", Severity.Success);
+            }
+
+            await OnReviewSubmitted.InvokeAsync(savedReview);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error submitting review: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool IsValidReview()
+    {
+        return Review.Rating.HasValue && 
+               Review.Rating.Value >= 1 && 
+               Review.Rating.Value <= 5 &&
+               (!string.IsNullOrWhiteSpace(Review.CustomerName) || IsUserLoggedIn) &&
+               (IsValidEmail(Review.CustomerEmail) || IsUserLoggedIn) &&
+               AcceptTerms;
+    }
+
+    private bool IsValidEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}

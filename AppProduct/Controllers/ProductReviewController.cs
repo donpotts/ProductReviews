@@ -119,4 +119,123 @@ public class ProductReviewController(ApplicationDbContext ctx) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("bulk-upsert")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<object>> BulkUpsertAsync(List<ProductReview> productReviews)
+    {
+        if (productReviews == null || !productReviews.Any())
+        {
+            return BadRequest("No product reviews provided");
+        }
+
+        var processedCount = 0;
+        var addedCount = 0;
+        var updatedCount = 0;
+        var errors = new List<string>();
+
+        try
+        {
+            foreach (var productReview in productReviews)
+            {
+                try
+                {
+                    // Set defaults for required fields if missing
+                    if (string.IsNullOrWhiteSpace(productReview.CustomerName))
+                    {
+                        productReview.CustomerName = $"Customer {processedCount + 1}";
+                    }
+                    if (string.IsNullOrWhiteSpace(productReview.CustomerEmail))
+                    {
+                        productReview.CustomerEmail = $"customer{processedCount + 1}@example.com";
+                    }
+                    if (!productReview.Rating.HasValue)
+                    {
+                        productReview.Rating = 5.0m; // Default to 5 stars
+                    }
+                    
+                    // Set timestamps
+                    var now = DateTime.UtcNow;
+                    if (productReview.Id.HasValue && productReview.Id.Value > 0)
+                    {
+                        // Update existing product review
+                        var existingReview = await ctx.ProductReview.FindAsync(productReview.Id.Value);
+                        if (existingReview != null)
+                        {
+                            existingReview.ProductId = productReview.ProductId;
+                            existingReview.CustomerName = productReview.CustomerName;
+                            existingReview.CustomerEmail = productReview.CustomerEmail;
+                            existingReview.Rating = productReview.Rating;
+                            existingReview.Title = productReview.Title;
+                            existingReview.ReviewText = productReview.ReviewText;
+                            existingReview.ReviewDate = productReview.ReviewDate ?? now;
+                            existingReview.IsVerifiedPurchase = productReview.IsVerifiedPurchase;
+                            existingReview.HelpfulVotes = productReview.HelpfulVotes ?? 0;
+                            existingReview.Notes = productReview.Notes;
+                            existingReview.UserId = productReview.UserId;
+                            existingReview.ModifiedDate = now;
+                            
+                            ctx.ProductReview.Update(existingReview);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // ID provided but review doesn't exist, create new one
+                            productReview.CreatedDate = now;
+                            productReview.ModifiedDate = now;
+                            productReview.ReviewDate ??= now;
+                            productReview.HelpfulVotes ??= 0;
+                            await ctx.ProductReview.AddAsync(productReview);
+                            addedCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Create new product review (reviews are typically unique by content)
+                        productReview.CreatedDate = now;
+                        productReview.ModifiedDate = now;
+                        productReview.ReviewDate ??= now;
+                        productReview.HelpfulVotes ??= 0;
+                        await ctx.ProductReview.AddAsync(productReview);
+                        addedCount++;
+                    }
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var reviewTitle = productReview?.Title ?? "Unknown";
+                    errors.Add($"Row {processedCount + 1} (Review: {reviewTitle}): {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        errors.Add($"  Inner error: {ex.InnerException.Message}");
+                    }
+                }
+            }
+
+            await ctx.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = errors,
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = new[] { ex.Message },
+                Success = false
+            });
+        }
+    }
 }

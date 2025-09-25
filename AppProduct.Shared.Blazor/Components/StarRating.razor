@@ -1,0 +1,108 @@
+@using MudBlazor
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+    @for (int i = 1; i <= MaxRating; i++)
+    {
+        var starIndex = i;
+        <MudIconButton Icon="@GetStarIcon(starIndex)" 
+                       Color="@GetStarColor(starIndex)"
+                       Size="@Size" 
+                       Disabled="@ReadOnly"
+                       OnClick="@(() => SetRating(starIndex))"
+                       Class="pa-0"
+                       Style="@GetStarStyle(starIndex)" />
+    }
+    
+    @if (ShowRatingText && Value.HasValue)
+    {
+        <MudText Typo="@TextTypo" Class="ml-2">
+            @Value.Value/@MaxRating
+        </MudText>
+    }
+    
+    @if (ShowRatingCount && ReviewCount.HasValue)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Tertiary" Class="ml-1">
+            (@ReviewCount.Value @(ReviewCount.Value == 1 ? "review" : "reviews"))
+        </MudText>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public decimal? Value { get; set; }
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+    [Parameter] public int MaxRating { get; set; } = 5;
+    [Parameter] public bool ReadOnly { get; set; } = false;
+    [Parameter] public bool ShowRatingText { get; set; } = false;
+    [Parameter] public bool ShowRatingCount { get; set; } = false;
+    [Parameter] public int? ReviewCount { get; set; }
+    [Parameter] public MudBlazor.Size Size { get; set; } = MudBlazor.Size.Medium;
+    [Parameter] public Typo TextTypo { get; set; } = Typo.body2;
+    [Parameter] public bool AllowHalfStars { get; set; } = false;
+    [Parameter] public decimal? AverageRating { get; set; }
+
+    private string GetStarIcon(int starIndex)
+    {
+        if (AverageRating.HasValue && ReadOnly)
+        {
+            // For display mode, use average rating
+            if (AverageRating.Value >= starIndex)
+                return Icons.Material.Filled.Star;
+            else if (AllowHalfStars && AverageRating.Value >= starIndex - 0.5m)
+                return Icons.Material.Filled.StarHalf;
+            else
+                return Icons.Material.Outlined.Star;
+        }
+        else
+        {
+            // For input mode, use selected value
+            if (Value.HasValue && Value.Value >= starIndex)
+                return Icons.Material.Filled.Star;
+            else
+                return Icons.Material.Outlined.Star;
+        }
+    }
+
+    private Color GetStarColor(int starIndex)
+    {
+        if (AverageRating.HasValue && ReadOnly)
+        {
+            return AverageRating.Value >= starIndex - 0.5m ? Color.Warning : Color.Tertiary;
+        }
+        else
+        {
+            return (Value.HasValue && Value.Value >= starIndex) ? Color.Warning : Color.Tertiary;
+        }
+    }
+
+    private string GetStarStyle(int starIndex)
+    {
+        var baseStyle = ReadOnly ? "cursor: default;" : "cursor: pointer;";
+        
+        // Force yellow color for filled stars
+        bool isFilled = false;
+        if (AverageRating.HasValue && ReadOnly)
+        {
+            isFilled = AverageRating.Value >= starIndex - 0.5m;
+        }
+        else
+        {
+            isFilled = Value.HasValue && Value.Value >= starIndex;
+        }
+        
+        if (isFilled)
+        {
+            baseStyle += " color: #ffc107 !important;"; // Yellow color
+        }
+        
+        return baseStyle;
+    }
+
+    private async Task SetRating(int rating)
+    {
+        if (ReadOnly) return;
+        
+        Value = rating;
+        await ValueChanged.InvokeAsync(Value);
+    }
+}

@@ -138,4 +138,120 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("bulk-upsert")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<object>> BulkUpsertAsync(List<Feature> features)
+    {
+        if (features == null || !features.Any())
+        {
+            return BadRequest("No features provided");
+        }
+
+        var processedCount = 0;
+        var addedCount = 0;
+        var updatedCount = 0;
+        var errors = new List<string>();
+
+        try
+        {
+            foreach (var feature in features)
+            {
+                try
+                {
+                    // Set timestamps
+                    var now = DateTime.UtcNow;
+                    if (feature.Id.HasValue && feature.Id.Value > 0)
+                    {
+                        // Update existing feature
+                        var existingFeature = await ctx.Feature.FindAsync(feature.Id.Value);
+                        if (existingFeature != null)
+                        {
+                            existingFeature.Name = feature.Name;
+                            existingFeature.Description = feature.Description;
+                            existingFeature.IconUrl = feature.IconUrl;
+                            existingFeature.Type = feature.Type;
+                            existingFeature.Notes = feature.Notes;
+                            existingFeature.UserId = feature.UserId;
+                            existingFeature.ModifiedDate = now;
+                            
+                            ctx.Feature.Update(existingFeature);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // ID provided but feature doesn't exist, create new one
+                            feature.CreatedDate = now;
+                            feature.ModifiedDate = now;
+                            await ctx.Feature.AddAsync(feature);
+                            addedCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Check if feature with same name already exists
+                        var existingByName = await ctx.Feature
+                            .FirstOrDefaultAsync(c => c.Name == feature.Name && !string.IsNullOrEmpty(feature.Name));
+                        
+                        if (existingByName != null)
+                        {
+                            // Update existing feature by name
+                            existingByName.Description = feature.Description;
+                            existingByName.IconUrl = feature.IconUrl;
+                            existingByName.Type = feature.Type;
+                            existingByName.Notes = feature.Notes;
+                            existingByName.UserId = feature.UserId;
+                            existingByName.ModifiedDate = now;
+                            
+                            ctx.Feature.Update(existingByName);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // Create new feature
+                            feature.CreatedDate = now;
+                            feature.ModifiedDate = now;
+                            await ctx.Feature.AddAsync(feature);
+                            addedCount++;
+                        }
+                    }
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var featureName = feature?.Name ?? "Unknown";
+                    errors.Add($"Row {processedCount + 1} (Feature: {featureName}): {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        errors.Add($"  Inner error: {ex.InnerException.Message}");
+                    }
+                }
+            }
+
+            await ctx.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = errors,
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = new[] { ex.Message },
+                Success = false
+            });
+        }
+    }
 }

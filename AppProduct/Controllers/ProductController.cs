@@ -214,4 +214,134 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("bulk-upsert")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<object>> BulkUpsertAsync(List<Product> products)
+    {
+        if (products == null || !products.Any())
+        {
+            return BadRequest("No products provided");
+        }
+
+        var processedCount = 0;
+        var addedCount = 0;
+        var updatedCount = 0;
+        var errors = new List<string>();
+
+        try
+        {
+            foreach (var product in products)
+            {
+                try
+                {
+                    // Set defaults for required fields if missing
+                    if (string.IsNullOrWhiteSpace(product.Name))
+                    {
+                        product.Name = $"Product {processedCount + 1}";
+                    }
+                    
+                    // Set timestamps
+                    var now = DateTime.UtcNow;
+                    if (product.Id.HasValue && product.Id.Value > 0)
+                    {
+                        // Update existing product
+                        var existingProduct = await ctx.Product.FindAsync(product.Id.Value);
+                        if (existingProduct != null)
+                        {
+                            existingProduct.Name = product.Name;
+                            existingProduct.Description = product.Description;
+                            existingProduct.DetailedSpecs = product.DetailedSpecs;
+                            existingProduct.Price = product.Price ?? 0;
+                            existingProduct.ImageUrl = product.ImageUrl;
+                            existingProduct.InStock = product.InStock;
+                            existingProduct.ReleaseDate = product.ReleaseDate;
+                            existingProduct.Notes = product.Notes;
+                            existingProduct.UserId = product.UserId;
+                            existingProduct.ModifiedDate = now;
+                            
+                            ctx.Product.Update(existingProduct);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // ID provided but product doesn't exist, create new one
+                            product.CreatedDate = now;
+                            product.ModifiedDate = now;
+                            if (!product.Price.HasValue) product.Price = 0;
+                            await ctx.Product.AddAsync(product);
+                            addedCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Check if product with same name already exists
+                        var existingByName = await ctx.Product
+                            .FirstOrDefaultAsync(c => c.Name == product.Name && !string.IsNullOrEmpty(product.Name));
+                        
+                        if (existingByName != null)
+                        {
+                            // Update existing product by name
+                            existingByName.Description = product.Description;
+                            existingByName.DetailedSpecs = product.DetailedSpecs;
+                            existingByName.Price = product.Price ?? existingByName.Price;
+                            existingByName.ImageUrl = product.ImageUrl;
+                            existingByName.InStock = product.InStock;
+                            existingByName.ReleaseDate = product.ReleaseDate;
+                            existingByName.Notes = product.Notes;
+                            existingByName.UserId = product.UserId;
+                            existingByName.ModifiedDate = now;
+                            
+                            ctx.Product.Update(existingByName);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // Create new product
+                            product.CreatedDate = now;
+                            product.ModifiedDate = now;
+                            if (!product.Price.HasValue) product.Price = 0;
+                            await ctx.Product.AddAsync(product);
+                            addedCount++;
+                        }
+                    }
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var productName = product?.Name ?? "Unknown";
+                    errors.Add($"Row {processedCount + 1} (Product: {productName}): {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        errors.Add($"  Inner error: {ex.InnerException.Message}");
+                    }
+                }
+            }
+
+            await ctx.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = errors,
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = new[] { ex.Message },
+                Success = false
+            });
+        }
+    }
 }

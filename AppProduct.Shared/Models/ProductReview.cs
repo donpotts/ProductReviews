@@ -22,7 +22,7 @@ public class ProductReview
     public string? CustomerEmail { get; set; }
 
     [DataMember]
-    public long? Rating { get; set; }
+    public decimal? Rating { get; set; }
 
     [DataMember]
     public string? Title { get; set; }

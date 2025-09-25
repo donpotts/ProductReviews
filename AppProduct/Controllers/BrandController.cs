@@ -119,4 +119,122 @@ public class BrandController(ApplicationDbContext ctx) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("bulk-upsert")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<object>> BulkUpsertAsync(List<Brand> brands)
+    {
+        if (brands == null || !brands.Any())
+        {
+            return BadRequest("No brands provided");
+        }
+
+        var processedCount = 0;
+        var addedCount = 0;
+        var updatedCount = 0;
+        var errors = new List<string>();
+
+        try
+        {
+            foreach (var brand in brands)
+            {
+                try
+                {
+                    // Set timestamps
+                    var now = DateTime.UtcNow;
+                    if (brand.Id.HasValue && brand.Id.Value > 0)
+                    {
+                        // Update existing brand
+                        var existingBrand = await ctx.Brand.FindAsync(brand.Id.Value);
+                        if (existingBrand != null)
+                        {
+                            existingBrand.Name = brand.Name;
+                            existingBrand.Description = brand.Description;
+                            existingBrand.LogoUrl = brand.LogoUrl;
+                            existingBrand.Website = brand.Website;
+                            existingBrand.EstablishedDate = brand.EstablishedDate;
+                            existingBrand.Notes = brand.Notes;
+                            existingBrand.UserId = brand.UserId;
+                            existingBrand.ModifiedDate = now;
+                            
+                            ctx.Brand.Update(existingBrand);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // ID provided but brand doesn't exist, create new one
+                            brand.CreatedDate = now;
+                            brand.ModifiedDate = now;
+                            await ctx.Brand.AddAsync(brand);
+                            addedCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Check if brand with same name already exists
+                        var existingByName = await ctx.Brand
+                            .FirstOrDefaultAsync(c => c.Name == brand.Name && !string.IsNullOrEmpty(brand.Name));
+                        
+                        if (existingByName != null)
+                        {
+                            // Update existing brand by name
+                            existingByName.Description = brand.Description;
+                            existingByName.LogoUrl = brand.LogoUrl;
+                            existingByName.Website = brand.Website;
+                            existingByName.EstablishedDate = brand.EstablishedDate;
+                            existingByName.Notes = brand.Notes;
+                            existingByName.UserId = brand.UserId;
+                            existingByName.ModifiedDate = now;
+                            
+                            ctx.Brand.Update(existingByName);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // Create new brand
+                            brand.CreatedDate = now;
+                            brand.ModifiedDate = now;
+                            await ctx.Brand.AddAsync(brand);
+                            addedCount++;
+                        }
+                    }
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var brandName = brand?.Name ?? "Unknown";
+                    errors.Add($"Row {processedCount + 1} (Brand: {brandName}): {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        errors.Add($"  Inner error: {ex.InnerException.Message}");
+                    }
+                }
+            }
+
+            await ctx.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = errors,
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = new[] { ex.Message },
+                Success = false
+            });
+        }
+    }
 }

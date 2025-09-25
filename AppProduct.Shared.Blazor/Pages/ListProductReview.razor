@@ -4,12 +4,27 @@
 @inject IDialogService DialogService
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 @attribute [Authorize]
+@using CsvHelper
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Web
 
-<PageTitle>ProductReview</PageTitle>
+<PageTitle>Product Reviews</PageTitle>
 
 <div class="mb-3">
-    <MudText Typo="Typo.h3">ProductReview</MudText>
+    <MudText Typo="Typo.h3">Product Reviews</MudText>
+    @if (_productIdFilter.HasValue)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-2">
+            Showing reviews for Product ID: @_productIdFilter.Value
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearProductFilter" Class="ml-2">
+                Show All Reviews
+            </MudButton>
+        </MudAlert>
+    }
 </div>
 
 <MudStack AlignItems="AlignItems.End" Class="mb-3">
@@ -18,10 +33,21 @@
 
 <MudDataGrid T="ProductReview" @ref="grid" ServerData="(new Func<GridState<ProductReview>, Task<GridData<ProductReview>>>(ServerReload))" Filterable="true">
     <ToolBarContent>
-         <MudText Typo="Typo.h6">ProductReview</MudText>
+         <MudText Typo="Typo.h6">Product Reviews</MudText>
          <MudSpacer />
          <MudTextField T="string" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true" ValueChanged="@(value => SearchChanged(value))"></MudTextField>
-         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export</MudButton>
+         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export CSV</MudButton>
+         <MudFileUpload T="IBrowserFile" Accept=".csv" FilesChanged="ImportFromCSV" MaximumFileCount="1">
+             <ActivatorContent>
+                 <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Upload">
+                     Import CSV
+                 </MudButton>
+             </ActivatorContent>
+         </MudFileUpload>
+         @if (_isImporting)
+         {
+             <MudProgressCircular Color="Color.Secondary" Size="Size.Small" Indeterminate="true" />
+         }
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x!.Id" Title="Id" />
@@ -75,6 +101,9 @@
 @code {
     private MudDataGrid<ProductReview>? grid;
     private string? _searchString;
+    private bool _isImporting = false;
+    private IBrowserFile? _csvFile;
+    private long? _productIdFilter;
     private string GetAbsoluteUri(string uri)
     {
         if (!uri.StartsWith("/"))
@@ -105,6 +134,14 @@
 
         try
         {
+            // Add product filter if specified
+            var filters = new List<string>();
+            
+            if (_productIdFilter.HasValue)
+            {
+                filters.Add($"ProductId eq {_productIdFilter.Value}");
+            }
+            
             if (_searchString?.Length > 0)
             {
                bool isNumeric = double.TryParse(_searchString, out _);
@@ -112,18 +149,25 @@
 
                if (isNumeric)
                {
-                   filter = $"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}";
+                   filters.Add($"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}");
                }
                else if (isDateTime)
                {
-                   filter = $"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)";
+                   filters.Add($"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)");
                }
                else
                {
-                   filter = $"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ";
+                   filters.Add($"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ");
                }
             }
-            result = await AppService.ListProductReviewODataAsync(top, skip, orderby, filter, true, null);
+
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                filters.Add(filter);
+            }
+
+            var combinedFilter = filters.Any() ? string.Join(" and ", filters.Select(f => $"({f})")) : null;
+            result = await AppService.ListProductReviewODataAsync(top, skip, orderby, combinedFilter, true, null);
         }
         catch (Exception ex)
         {
@@ -253,5 +297,150 @@
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
+    }
+
+    private async Task ImportFromCSV(IBrowserFile file)
+    {
+        if (file == null) return;
+
+        _csvFile = file;
+        _isImporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var fileContent = new byte[_csvFile.Size];
+            using (var stream = _csvFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+            {
+                await stream.ReadAsync(fileContent, 0, (int)_csvFile.Size);
+            }
+
+            using var memoryStream = new MemoryStream(fileContent);
+            using var reader = new StreamReader(memoryStream);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            
+            csv.Context.Configuration.HeaderValidated = null;
+            csv.Context.Configuration.MissingFieldFound = null;
+
+            var productReviews = new List<ProductReview>();
+            await csv.ReadAsync();
+            csv.ReadHeader();
+            
+            while (await csv.ReadAsync())
+            {
+                var productReview = new ProductReview();
+                
+                productReview.CustomerName = GetFieldValue(csv, "customername") ?? GetFieldValue(csv, "CustomerName");
+                productReview.CustomerEmail = GetFieldValue(csv, "customeremail") ?? GetFieldValue(csv, "CustomerEmail");
+                productReview.Title = GetFieldValue(csv, "title") ?? GetFieldValue(csv, "Title");
+                productReview.ReviewText = GetFieldValue(csv, "reviewtext") ?? GetFieldValue(csv, "ReviewText");
+                productReview.Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes");
+                
+                var productIdStr = GetFieldValue(csv, "productid") ?? GetFieldValue(csv, "ProductId");
+                if (!string.IsNullOrWhiteSpace(productIdStr) && long.TryParse(productIdStr, out var productId))
+                {
+                    productReview.ProductId = productId;
+                }
+                
+                var ratingStr = GetFieldValue(csv, "rating") ?? GetFieldValue(csv, "Rating");
+                if (!string.IsNullOrWhiteSpace(ratingStr) && long.TryParse(ratingStr, out var rating))
+                {
+                    productReview.Rating = rating;
+                }
+                
+                var verifiedStr = GetFieldValue(csv, "isverifiedpurchase") ?? GetFieldValue(csv, "IsVerifiedPurchase");
+                if (!string.IsNullOrWhiteSpace(verifiedStr) && bool.TryParse(verifiedStr, out var isVerified))
+                {
+                    productReview.IsVerifiedPurchase = isVerified;
+                }
+                
+                var helpfulVotesStr = GetFieldValue(csv, "helpfulvotes") ?? GetFieldValue(csv, "HelpfulVotes");
+                if (!string.IsNullOrWhiteSpace(helpfulVotesStr) && long.TryParse(helpfulVotesStr, out var helpfulVotes))
+                {
+                    productReview.HelpfulVotes = helpfulVotes;
+                }
+                
+                var reviewDateStr = GetFieldValue(csv, "reviewdate") ?? GetFieldValue(csv, "ReviewDate");
+                if (!string.IsNullOrWhiteSpace(reviewDateStr) && DateTime.TryParse(reviewDateStr, out var reviewDate))
+                {
+                    productReview.ReviewDate = reviewDate;
+                }
+                
+                var userIdStr = GetFieldValue(csv, "userid") ?? GetFieldValue(csv, "UserId");
+                if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId))
+                {
+                    productReview.UserId = userId;
+                }
+
+                productReviews.Add(productReview);
+            }
+
+            if (productReviews.Any())
+            {
+                var response = await AppService.BulkUpsertProductReviewAsync(productReviews);
+                if (response != null)
+                {
+                    var jsonElement = (JsonElement)response;
+                    var success = jsonElement.GetProperty("success").GetBoolean();
+                    var processedCount = jsonElement.GetProperty("processedCount").GetInt32();
+                    var addedCount = jsonElement.GetProperty("addedCount").GetInt32();
+                    var updatedCount = jsonElement.GetProperty("updatedCount").GetInt32();
+                    
+                    if (success)
+                    {
+                        Snackbar.Add($"Import successful: {processedCount} processed, {addedCount} added, {updatedCount} updated", Severity.Success);
+                        await (grid?.ReloadServerData() ?? Task.CompletedTask);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Import failed", Severity.Error);
+                    }
+                }
+            }
+            else
+            {
+                Snackbar.Add("No valid product reviews found in CSV", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error importing CSV: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isImporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private string? GetFieldValue(CsvReader csv, string fieldName)
+    {
+        try
+        {
+            return csv.GetField(fieldName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var productIdParam = queryParams["productId"];
+        
+        if (!string.IsNullOrEmpty(productIdParam) && long.TryParse(productIdParam, out var productId))
+        {
+            _productIdFilter = productId;
+        }
+    }
+
+    private async void ClearProductFilter()
+    {
+        _productIdFilter = null;
+        Navigation.NavigateTo("/productreview");
+        await (grid?.ReloadServerData() ?? Task.CompletedTask);
     }
 }

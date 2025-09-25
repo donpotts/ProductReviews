@@ -5,11 +5,15 @@
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
 @attribute [Authorize]
+@using CsvHelper
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
 
-<PageTitle>Brand</PageTitle>
+<PageTitle>Brands</PageTitle>
 
 <div class="mb-3">
-    <MudText Typo="Typo.h3">Brand</MudText>
+    <MudText Typo="Typo.h3">Brands</MudText>
 </div>
 
 <MudStack AlignItems="AlignItems.End" Class="mb-3">
@@ -18,10 +22,21 @@
 
 <MudDataGrid T="Brand" @ref="grid" ServerData="(new Func<GridState<Brand>, Task<GridData<Brand>>>(ServerReload))" Filterable="true">
     <ToolBarContent>
-         <MudText Typo="Typo.h6">Brand</MudText>
+         <MudText Typo="Typo.h6">Brands</MudText>
          <MudSpacer />
          <MudTextField T="string" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true" ValueChanged="@(value => SearchChanged(value))"></MudTextField>
-         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export</MudButton>
+         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export CSV</MudButton>
+         <MudFileUpload T="IBrowserFile" Accept=".csv" FilesChanged="ImportFromCSV" MaximumFileCount="1">
+             <ActivatorContent>
+                 <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Upload">
+                     Import CSV
+                 </MudButton>
+             </ActivatorContent>
+         </MudFileUpload>
+         @if (_isImporting)
+         {
+             <MudProgressCircular Color="Color.Secondary" Size="Size.Small" Indeterminate="true" />
+         }
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x!.Id" Title="Id" />
@@ -71,6 +86,8 @@
 @code {
     private MudDataGrid<Brand>? grid;
     private string? _searchString;
+    private bool _isImporting = false;
+    private IBrowserFile? _csvFile;
     private string GetAbsoluteUri(string uri)
     {
         if (!uri.StartsWith("/"))
@@ -197,6 +214,108 @@
             return;
         }
         grid?.ReloadServerData();
+    }
+
+    private async Task ImportFromCSV(IBrowserFile file)
+    {
+        if (file == null) return;
+
+        _csvFile = file;
+        _isImporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var fileContent = new byte[_csvFile.Size];
+            using (var stream = _csvFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+            {
+                await stream.ReadAsync(fileContent, 0, (int)_csvFile.Size);
+            }
+
+            using var memoryStream = new MemoryStream(fileContent);
+            using var reader = new StreamReader(memoryStream);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            
+            csv.Context.Configuration.HeaderValidated = null;
+            csv.Context.Configuration.MissingFieldFound = null;
+
+            var brands = new List<Brand>();
+            await csv.ReadAsync();
+            csv.ReadHeader();
+            
+            while (await csv.ReadAsync())
+            {
+                var brand = new Brand();
+                
+                brand.Name = GetFieldValue(csv, "name") ?? GetFieldValue(csv, "Name");
+                brand.Description = GetFieldValue(csv, "description") ?? GetFieldValue(csv, "Description");
+                brand.LogoUrl = GetFieldValue(csv, "logourl") ?? GetFieldValue(csv, "LogoUrl");
+                brand.Website = GetFieldValue(csv, "website") ?? GetFieldValue(csv, "Website");
+                brand.Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes");
+                
+                var userIdStr = GetFieldValue(csv, "userid") ?? GetFieldValue(csv, "UserId");
+                if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId))
+                {
+                    brand.UserId = userId;
+                }
+                
+                var establishedStr = GetFieldValue(csv, "establisheddate") ?? GetFieldValue(csv, "EstablishedDate");
+                if (!string.IsNullOrWhiteSpace(establishedStr) && DateTime.TryParse(establishedStr, out var establishedDate))
+                {
+                    brand.EstablishedDate = establishedDate;
+                }
+
+                brands.Add(brand);
+            }
+
+            if (brands.Any())
+            {
+                var response = await AppService.BulkUpsertBrandAsync(brands);
+                if (response != null)
+                {
+                    var jsonElement = (JsonElement)response;
+                    var success = jsonElement.GetProperty("success").GetBoolean();
+                    var processedCount = jsonElement.GetProperty("processedCount").GetInt32();
+                    var addedCount = jsonElement.GetProperty("addedCount").GetInt32();
+                    var updatedCount = jsonElement.GetProperty("updatedCount").GetInt32();
+                    
+                    if (success)
+                    {
+                        Snackbar.Add($"Import successful: {processedCount} processed, {addedCount} added, {updatedCount} updated", Severity.Success);
+                        await (grid?.ReloadServerData() ?? Task.CompletedTask);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Import failed", Severity.Error);
+                    }
+                }
+            }
+            else
+            {
+                Snackbar.Add("No valid brands found in CSV", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error importing CSV: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isImporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private string? GetFieldValue(CsvReader csv, string fieldName)
+    {
+        try
+        {
+            return csv.GetField(fieldName);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task ExportAllToCSV()

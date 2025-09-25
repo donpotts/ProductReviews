@@ -1,0 +1,6 @@
+Name,Description,Color,UserId
+New,Recently released products,#00FF00,1
+Sale,Products on discount,#FF0000,1
+Trending,Currently popular items,#FF6600,1
+Recommended,Staff picks and recommendations,#0066FF,1
+Limited,Limited edition or availability,#800080,1

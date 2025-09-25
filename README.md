@@ -10,6 +10,8 @@ An end‑to‑end sample showcasing a modern Blazor WASM application with:
 - OData + OpenAPI/Swagger support
 - Responsive navigation (top bar toggle + drawer) with mobile refinements
 - Dark / Light theme switching via MudBlazor
+- CSV import & export for Products and Product Reviews (bulk upsert) using CsvHelper
+- Aggregate product rating display (average, count, per‑review breakdown)
 
 > Purpose: Demonstrate how to layer AI retrieval+chat over an existing domain model with minimal friction while keeping the app fully usable without AI.
 
@@ -57,6 +59,35 @@ A local SQLite DB file will be created (e.g., in `bin/Debug/...`).
 dotnet run --project AppProduct
 ```
 Browse to: http://localhost:5000 (or the Kestrel-assigned port). Register a user, sign in, explore products, open Product Chat.
+
+---
+## Data Import / Export
+CSV toolbar actions are available on both the Products and Product Reviews pages:
+
+| Page | Actions | Notes |
+|------|---------|-------|
+| Products | Export CSV / Import CSV | Bulk upsert: existing rows matched by (Name + optional Id) update; new rows insert. Related collections (Category/Brand/etc.) not created during import (simplify demo). |
+| Product Reviews | Export CSV / Import CSV | Bulk upsert by (ProductId + CustomerEmail + Title if Id missing). Adds or updates review fields (Rating, Text, HelpfulVotes, Verified flag). |
+
+Implementation details:
+- Uses `MudFileUpload` for client selection and `CsvHelper` for parsing.
+- Headers are case‑insensitive; missing columns are ignored.
+- Each import shows a snackbar summary: processed / added / updated.
+- Server bulk endpoint returns structured counts.
+
+Minimal column examples:
+```
+Products: Name,Description,Price,InStock,ReleaseDate
+ProductReviews: ProductId,CustomerName,CustomerEmail,Rating,Title,ReviewText,ReviewDate,IsVerifiedPurchase
+```
+
+---
+## Ratings Display
+Products grid shows:
+- Average rating (computed from associated reviews with a value)
+- Total review count
+- Optional breakdown panel (star distribution) rendered via `ProductRatingDisplay` (small star size for compact layout)
+If a product has no reviews a muted "No reviews" label is shown.
 
 ---
 ## AI Integration Overview
@@ -107,6 +138,7 @@ AppProduct.Blazor/          -> Blazor (WASM host integration if used)
 - `ProductChatService.cs` – Retrieval + prompt assembly logic.
 - `ProductChat.razor` – UI for interactive Q&A, auto-expands latest answer.
 - `NavMenu.razor` – Responsive navigation + mobile scroll improvements.
+- `ListProduct.razor` / `ListProductReview.razor` – CSV import/export + bulk upsert logic.
 
 ---
 ## Product Chat Prompt Strategy
@@ -150,6 +182,7 @@ Failures:
 - Mobile horizontal scroll prevents overflow clipping & preserves login/dark mode buttons.
 - Auto-expand newest chat answer; collapsible history with product sources.
 - Dark / light theme switching persists across interactions.
+- Compact loading indicators (MudBlazor circular progress) for chat & CSV import state.
 
 ---
 ## Extending the Sample
@@ -160,6 +193,8 @@ Failures:
 | Multi-turn memory | Maintain per-user `ChatHistory` scoped to session or persisted in DB |
 | Observability | Add structured logging around retrieval scores & token counts |
 | Role-based prompts | Inject role claims into system prompt to tailor responses |
+| Advanced CSV mapping | Allow custom column ↔ property mapping UI |
+| Review moderation | Add sentiment + toxicity check before saving reviews |
 
 ---
 ## Troubleshooting
@@ -169,6 +204,7 @@ Failures:
 | Embedding 404 | Path mismatch | Switch `/embeddings` ↔ `/v1/embeddings` in custom service |
 | All answers generic | Embeddings failed -> fallback | Verify PAT scope & model ids |
 | Chat 401 | Incorrect token or scope | Regenerate PAT with `models:read` |
+| CSV import skipped rows | Missing key fields | Ensure required columns present & clean data |
 
 Logs from `Microsoft.SemanticKernel.Connectors.OpenAI` can show token usage; enable verbose logging in `appsettings.Development.json` if needed.
 

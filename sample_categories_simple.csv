@@ -1,0 +1,11 @@
+Name,Description,IconUrl,ParentCategoryId,Notes,UserId
+Electronics,Electronic devices and gadgets,https://example.com/icons/electronics.png,,Consumer electronics category,1
+Computing,Computers and related accessories,https://example.com/icons/computing.png,,Computing equipment and accessories,1
+Smartphones,Mobile phones and accessories,https://example.com/icons/smartphones.png,Electronics,Latest smartphones and accessories,1
+Laptops,Portable computers,https://example.com/icons/laptops.png,Computing,Professional and gaming laptops,1
+Tablets,Tablet computers and e-readers,https://example.com/icons/tablets.png,Computing,Tablets for work and entertainment,1
+Home & Garden,Home improvement and gardening items,https://example.com/icons/home-garden.png,,Everything for home and garden,1
+Books,Books and educational materials,https://example.com/icons/books.png,,Physical and digital books,1
+Sports & Outdoors,Sports equipment and outdoor gear,https://example.com/icons/sports.png,,Athletic and recreational equipment,1
+Fashion,Clothing and accessories,https://example.com/icons/fashion.png,,Trendy clothing and accessories,1
+Health & Beauty,Health and beauty products,https://example.com/icons/health-beauty.png,,Personal care and wellness products,1

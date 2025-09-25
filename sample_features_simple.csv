@@ -1,0 +1,6 @@
+Name,Description,Type,UserId
+Bluetooth,Wireless short-range communication,Network,1
+GPS,Global positioning system navigation,Hardware,1
+Touchscreen,Touch-sensitive display interface,Display,1
+Camera,Digital image capture capability,Hardware,1
+Voice Control,Voice command functionality,Software,1

@@ -462,6 +462,38 @@ public class AppService(
         await HandleResponseErrorsAsync(response);
     }
 
+    public async Task<object?> BulkUpsertCategoryAsync(List<Category> categories)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/category/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(categories);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
+    }
+
+    public async Task<object?> BulkUpsertBrandAsync(List<Brand> brands)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/brand/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(brands);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
+    }
+
     public async Task<Feature[]?> ListFeatureAsync()
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync()
@@ -544,6 +576,22 @@ public class AppService(
         var response = await httpClient.SendAsync(request);
 
         await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task<object?> BulkUpsertFeatureAsync(List<Feature> features)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/feature/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(features);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
     }
 
     public async Task<ProductReview[]?> ListProductReviewAsync()
@@ -712,6 +760,54 @@ public class AppService(
         var response = await httpClient.SendAsync(request);
 
         await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task<object?> BulkUpsertTagAsync(List<Tag> tags)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/tag/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(tags);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
+    }
+
+    public async Task<object?> BulkUpsertProductAsync(List<Product> products)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/product/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(products);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
+    }
+
+    public async Task<object?> BulkUpsertProductReviewAsync(List<ProductReview> productReviews)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/productreview/bulk-upsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(productReviews);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<object>();
     }
 
     public async Task<string?> UploadImageAsync(Stream stream, int bufferSize, string contentType)

@@ -5,11 +5,15 @@
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
 @attribute [Authorize]
+@using CsvHelper
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
 
-<PageTitle>Product</PageTitle>
+<PageTitle>Products</PageTitle>
 
 <div class="mb-3">
-    <MudText Typo="Typo.h3">Product</MudText>
+    <MudText Typo="Typo.h3">Products</MudText>
 </div>
 
 <MudStack AlignItems="AlignItems.End" Class="mb-3">
@@ -18,10 +22,21 @@
 
 <MudDataGrid T="Product" @ref="grid" ServerData="(new Func<GridState<Product>, Task<GridData<Product>>>(ServerReload))" Filterable="true">
     <ToolBarContent>
-         <MudText Typo="Typo.h6">Product</MudText>
+         <MudText Typo="Typo.h6">Products</MudText>
          <MudSpacer />
          <MudTextField T="string" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true" ValueChanged="@(value => SearchChanged(value))"></MudTextField>
-         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export</MudButton>
+         <MudButton Color="Color.Primary" OnClick="ExportAllToCSV">Export CSV</MudButton>
+         <MudFileUpload T="IBrowserFile" Accept=".csv" FilesChanged="ImportFromCSV" MaximumFileCount="1">
+             <ActivatorContent>
+                 <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Upload">
+                     Import CSV
+                 </MudButton>
+             </ActivatorContent>
+         </MudFileUpload>
+         @if (_isImporting)
+         {
+             <MudProgressCircular Color="Color.Secondary" Size="Size.Small" Indeterminate="true" />
+         }
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x!.Id" Title="Id" />
@@ -56,9 +71,31 @@
                 @string.Join(", ", context.Item.Tag?.Select(x => x.Name?.ToString() ?? string.Empty) ?? [])
             </CellTemplate>
         </TemplateColumn>
-        <TemplateColumn Title="ProductReview" Sortable="false" Filterable="false">
+        <TemplateColumn Title="Rating" Sortable="false" Filterable="false">
             <CellTemplate>
-                @string.Join(", ", context.Item.ProductReview?.Select(x => x.Title?.ToString() ?? string.Empty) ?? [])
+                @{
+                    var reviews = context.Item.ProductReview ?? new List<ProductReview>();
+                    var avgRating = reviews.Any(r => r.Rating.HasValue) 
+                        ? (decimal)reviews.Where(r => r.Rating.HasValue).Average(r => r.Rating!.Value)
+                        : (decimal?)null;
+                    var reviewCount = reviews.Count;
+                }
+                
+                @if (avgRating.HasValue)
+                {
+                    <ProductRatingDisplay ProductId="@context.Item.Id!.Value"
+                                        AverageRating="@avgRating"
+                                        TotalReviews="@reviewCount"
+                                        Reviews="@reviews"
+                                        ShowBreakdown="true"
+                                        StarSize="Size.Small"
+                                        RatingTypo="Typo.caption"
+                                        CountTypo="Typo.caption" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">No reviews</MudText>
+                }
             </CellTemplate>
         </TemplateColumn>
         <TemplateColumn Style="width: 50px;" StickyRight="true" Sortable="false" Filterable="false">
@@ -98,6 +135,8 @@
 @code {
     private MudDataGrid<Product>? grid;
     private string? _searchString;
+    private bool _isImporting = false;
+    private IBrowserFile? _csvFile;
     private string GetAbsoluteUri(string uri)
     {
         if (!uri.StartsWith("/"))
@@ -278,6 +317,120 @@ ProductReview = string.Join(", ", x.ProductReview?.Select(x => x.Title?.ToString
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ImportFromCSV(IBrowserFile file)
+    {
+        if (file == null) return;
+
+        _csvFile = file;
+        _isImporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var fileContent = new byte[_csvFile.Size];
+            using (var stream = _csvFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+            {
+                await stream.ReadAsync(fileContent, 0, (int)_csvFile.Size);
+            }
+
+            using var memoryStream = new MemoryStream(fileContent);
+            using var reader = new StreamReader(memoryStream);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            
+            csv.Context.Configuration.HeaderValidated = null;
+            csv.Context.Configuration.MissingFieldFound = null;
+
+            var products = new List<Product>();
+            await csv.ReadAsync();
+            csv.ReadHeader();
+            
+            while (await csv.ReadAsync())
+            {
+                var product = new Product();
+                
+                product.Name = GetFieldValue(csv, "name") ?? GetFieldValue(csv, "Name");
+                product.Description = GetFieldValue(csv, "description") ?? GetFieldValue(csv, "Description");
+                product.DetailedSpecs = GetFieldValue(csv, "detailedspecs") ?? GetFieldValue(csv, "DetailedSpecs");
+                product.ImageUrl = GetFieldValue(csv, "imageurl") ?? GetFieldValue(csv, "ImageUrl");
+                product.Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes");
+                
+                var priceStr = GetFieldValue(csv, "price") ?? GetFieldValue(csv, "Price");
+                if (!string.IsNullOrWhiteSpace(priceStr) && decimal.TryParse(priceStr, out var price))
+                {
+                    product.Price = price;
+                }
+                
+                var inStockStr = GetFieldValue(csv, "instock") ?? GetFieldValue(csv, "InStock");
+                if (!string.IsNullOrWhiteSpace(inStockStr) && bool.TryParse(inStockStr, out var inStock))
+                {
+                    product.InStock = inStock;
+                }
+                
+                var releaseDateStr = GetFieldValue(csv, "releasedate") ?? GetFieldValue(csv, "ReleaseDate");
+                if (!string.IsNullOrWhiteSpace(releaseDateStr) && DateTime.TryParse(releaseDateStr, out var releaseDate))
+                {
+                    product.ReleaseDate = releaseDate;
+                }
+                
+                var userIdStr = GetFieldValue(csv, "userid") ?? GetFieldValue(csv, "UserId");
+                if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId))
+                {
+                    product.UserId = userId;
+                }
+
+                products.Add(product);
+            }
+
+            if (products.Any())
+            {
+                var response = await AppService.BulkUpsertProductAsync(products);
+                if (response != null)
+                {
+                    var jsonElement = (JsonElement)response;
+                    var success = jsonElement.GetProperty("success").GetBoolean();
+                    var processedCount = jsonElement.GetProperty("processedCount").GetInt32();
+                    var addedCount = jsonElement.GetProperty("addedCount").GetInt32();
+                    var updatedCount = jsonElement.GetProperty("updatedCount").GetInt32();
+                    
+                    if (success)
+                    {
+                        Snackbar.Add($"Import successful: {processedCount} processed, {addedCount} added, {updatedCount} updated", Severity.Success);
+                        await (grid?.ReloadServerData() ?? Task.CompletedTask);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Import failed", Severity.Error);
+                    }
+                }
+            }
+            else
+            {
+                Snackbar.Add("No valid products found in CSV", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error importing CSV: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isImporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private string? GetFieldValue(CsvReader csv, string fieldName)
+    {
+        try
+        {
+            return csv.GetField(fieldName);
+        }
+        catch
+        {
+            return null;
         }
     }
 }

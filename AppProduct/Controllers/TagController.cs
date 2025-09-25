@@ -138,4 +138,118 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("bulk-upsert")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<object>> BulkUpsertAsync(List<Tag> tags)
+    {
+        if (tags == null || !tags.Any())
+        {
+            return BadRequest("No tags provided");
+        }
+
+        var processedCount = 0;
+        var addedCount = 0;
+        var updatedCount = 0;
+        var errors = new List<string>();
+
+        try
+        {
+            foreach (var tag in tags)
+            {
+                try
+                {
+                    // Set timestamps
+                    var now = DateTime.UtcNow;
+                    if (tag.Id.HasValue && tag.Id.Value > 0)
+                    {
+                        // Update existing tag
+                        var existingTag = await ctx.Tag.FindAsync(tag.Id.Value);
+                        if (existingTag != null)
+                        {
+                            existingTag.Name = tag.Name;
+                            existingTag.Description = tag.Description;
+                            existingTag.Color = tag.Color;
+                            existingTag.Notes = tag.Notes;
+                            existingTag.UserId = tag.UserId;
+                            existingTag.ModifiedDate = now;
+                            
+                            ctx.Tag.Update(existingTag);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // ID provided but tag doesn't exist, create new one
+                            tag.CreatedDate = now;
+                            tag.ModifiedDate = now;
+                            await ctx.Tag.AddAsync(tag);
+                            addedCount++;
+                        }
+                    }
+                    else
+                    {
+                        // Check if tag with same name already exists
+                        var existingByName = await ctx.Tag
+                            .FirstOrDefaultAsync(c => c.Name == tag.Name && !string.IsNullOrEmpty(tag.Name));
+                        
+                        if (existingByName != null)
+                        {
+                            // Update existing tag by name
+                            existingByName.Description = tag.Description;
+                            existingByName.Color = tag.Color;
+                            existingByName.Notes = tag.Notes;
+                            existingByName.UserId = tag.UserId;
+                            existingByName.ModifiedDate = now;
+                            
+                            ctx.Tag.Update(existingByName);
+                            updatedCount++;
+                        }
+                        else
+                        {
+                            // Create new tag
+                            tag.CreatedDate = now;
+                            tag.ModifiedDate = now;
+                            await ctx.Tag.AddAsync(tag);
+                            addedCount++;
+                        }
+                    }
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var tagName = tag?.Name ?? "Unknown";
+                    errors.Add($"Row {processedCount + 1} (Tag: {tagName}): {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        errors.Add($"  Inner error: {ex.InnerException.Message}");
+                    }
+                }
+            }
+
+            await ctx.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = errors,
+                Success = true
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new 
+            { 
+                ProcessedCount = processedCount,
+                AddedCount = addedCount,
+                UpdatedCount = updatedCount,
+                Errors = new[] { ex.Message },
+                Success = false
+            });
+        }
+    }
 }
