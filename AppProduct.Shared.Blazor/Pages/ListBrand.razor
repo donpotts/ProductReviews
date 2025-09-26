@@ -4,6 +4,7 @@
 @inject IDialogService DialogService
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
+@inject IStorageService StorageService
 @attribute [Authorize]
 @using CsvHelper
 @using System.Globalization
@@ -458,6 +459,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Load view preference from localStorage
+        var savedViewPreference = await StorageService.GetAsync<bool?>("brand-view-preference");
+        if (savedViewPreference.HasValue)
+        {
+            _isCardView = savedViewPreference.Value;
+        }
+        
         if (_isCardView)
         {
             await LoadCardData();
@@ -511,6 +519,10 @@ else
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
+        
+        // Save view preference to localStorage
+        await StorageService.SetAsync("brand-view-preference", _isCardView);
+        
         if (_isCardView)
         {
             _currentPage = 1;

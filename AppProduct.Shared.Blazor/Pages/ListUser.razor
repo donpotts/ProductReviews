@@ -3,6 +3,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject HttpClient HttpClient
+@inject IStorageService StorageService
 @attribute [Authorize(Roles = "Administrator")]
 
 <PageTitle>Users</PageTitle>
@@ -251,6 +252,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Load view preference from localStorage
+        var savedViewPreference = await StorageService.GetAsync<bool?>("user-view-preference");
+        if (savedViewPreference.HasValue)
+        {
+            _isCardView = savedViewPreference.Value;
+        }
+        
         if (_isCardView)
         {
             await LoadCardData();
@@ -290,6 +298,10 @@ else
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
+        
+        // Save view preference to localStorage
+        await StorageService.SetAsync("user-view-preference", _isCardView);
+        
         if (_isCardView)
         {
             _currentPage = 1;

@@ -5,6 +5,7 @@
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Navigation
+@inject IStorageService StorageService
 @attribute [Authorize]
 @using CsvHelper
 @using System.Globalization
@@ -627,6 +628,13 @@ else
             _productIdFilter = productId;
         }
 
+        // Load view preference from localStorage
+        var savedViewPreference = await StorageService.GetAsync<bool?>("productreview-view-preference");
+        if (savedViewPreference.HasValue)
+        {
+            _isCardView = savedViewPreference.Value;
+        }
+
         if (_isCardView)
         {
             await LoadCardData();
@@ -687,6 +695,10 @@ else
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
+        
+        // Save view preference to localStorage
+        await StorageService.SetAsync("productreview-view-preference", _isCardView);
+        
         if (_isCardView)
         {
             _currentPage = 1;

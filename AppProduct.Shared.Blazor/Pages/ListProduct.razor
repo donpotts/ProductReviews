@@ -4,6 +4,7 @@
 @inject IDialogService DialogService
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
+@inject IStorageService StorageService
 @attribute [Authorize]
 @using CsvHelper
 @using System.Globalization
@@ -608,6 +609,13 @@ ProductReview = string.Join(", ", x.ProductReview?.Select(x => x.Title?.ToString
 
     protected override async Task OnInitializedAsync()
     {
+        // Load view preference from localStorage
+        var savedViewPreference = await StorageService.GetAsync<bool?>("product-view-preference");
+        if (savedViewPreference.HasValue)
+        {
+            _isCardView = savedViewPreference.Value;
+        }
+        
         if (_isCardView)
         {
             await LoadCardData();
@@ -661,6 +669,10 @@ ProductReview = string.Join(", ", x.ProductReview?.Select(x => x.Title?.ToString
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
+        
+        // Save view preference to localStorage
+        await StorageService.SetAsync("product-view-preference", _isCardView);
+        
         if (_isCardView)
         {
             _currentPage = 1;

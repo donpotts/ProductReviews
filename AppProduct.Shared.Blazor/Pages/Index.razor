@@ -2,9 +2,125 @@
 <AuthorizeView>
     <Authorized>
         <div class="mb-3">
-            <MudText Typo="Typo.h3">Products Sample</MudText>
+            <MudText Typo="Typo.h3">Product Reviews Dashboard</MudText>
         </div>
-    <MudText>Welcome to your new app.</MudText>
+        
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+            <MudPaper Class="pa-6 mud-elevation-2">
+                <MudGrid Spacing="4">
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h5" GutterBottom>Welcome to Product Reviews</MudText>
+                        <MudText Typo="Typo.body1" Class="mb-4">
+                            Manage your product catalog with comprehensive review analytics and AI-powered insights. 
+                            Track ratings, manage inventory, and engage with customer feedback all in one place.
+                        </MudText>
+                    </MudItem>
+                    
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-4">Quick Actions</MudText>
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
+                                    <MudCardContent Class="pa-4">
+                                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Large" Color="Color.Primary" />
+                                            <MudText Typo="Typo.subtitle1" Align="Align.Center">Product Catalog</MudText>
+                                            <MudText Typo="Typo.body2" Align="Align.Center">Manage your products, brands, categories, and features</MudText>
+                                        </MudStack>
+                                    </MudCardContent>
+                                    <MudCardActions Class="justify-center">
+                                        <MudButton Href="/product" Color="Color.Primary" Variant="Variant.Filled">View Products</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                            
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
+                                    <MudCardContent Class="pa-4">
+                                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Reviews" Size="Size.Large" Color="Color.Secondary" />
+                                            <MudText Typo="Typo.subtitle1" Align="Align.Center">Customer Reviews</MudText>
+                                            <MudText Typo="Typo.body2" Align="Align.Center">Monitor ratings, feedback, and review analytics</MudText>
+                                        </MudStack>
+                                    </MudCardContent>
+                                    <MudCardActions Class="justify-center">
+                                        <MudButton Href="/productreview" Color="Color.Secondary" Variant="Variant.Filled">View Reviews</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                            
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
+                                    <MudCardContent Class="pa-4">
+                                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Color="Color.Tertiary" />
+                                            <MudText Typo="Typo.subtitle1" Align="Align.Center">AI Product Chat</MudText>
+                                            <MudText Typo="Typo.body2" Align="Align.Center">Get intelligent insights about your products</MudText>
+                                        </MudStack>
+                                    </MudCardContent>
+                                    <MudCardActions Class="justify-center">
+                                        <MudButton Href="/productchat" Color="Color.Tertiary" Variant="Variant.Filled">Start Chat</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                    
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-4">Key Features</MudText>
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Medium" Color="Color.Warning" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">Advanced Rating System</MudText>
+                                            <MudText Typo="Typo.body2">Comprehensive star ratings with breakdown analytics and verified purchase tracking</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                            
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.ImportExport" Size="Size.Medium" Color="Color.Info" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">CSV Import/Export</MudText>
+                                            <MudText Typo="Typo.body2">Bulk operations for products, brands, categories, and all other entities</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                            
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.ViewModule" Size="Size.Medium" Color="Color.Success" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">Flexible Views</MudText>
+                                            <MudText Typo="Typo.body2">Switch between card and grid views with persistent preferences</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                            
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Medium" Color="Color.Error" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">Secure Identity</MudText>
+                                            <MudText Typo="Typo.body2">ASP.NET Core Identity with role-based authorization and user management</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudContainer>
     </Authorized>
     <NotAuthorized>
     <div class="mb-3">
