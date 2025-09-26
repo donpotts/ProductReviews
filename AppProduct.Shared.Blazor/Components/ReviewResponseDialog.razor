@@ -1,0 +1,233 @@
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@using AppProduct.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 800px;">
+            <MudText Typo="Typo.h6" Class="mb-4">Respond to Review</MudText>
+            
+            <MudGrid>
+                <!-- Original Review Display -->
+                <MudItem xs="12">
+                    <MudPaper Class="pa-4 mb-4" Style="background-color: var(--mud-palette-background-gray);">
+                        <MudText Typo="Typo.subtitle1" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" /> @Review?.CustomerName
+                        </MudText>
+                        @if (Review?.Rating.HasValue == true)
+                        {
+                            <StarRating Value="@((decimal?)Review.Rating.Value)" 
+                                      ReadOnly="true" 
+                                      Size="Size.Small" 
+                                      ShowRatingText="true" 
+                                      AverageRating="@((decimal?)Review.Rating.Value)" 
+                                      Class="mb-2" />
+                        }
+                        @if (!string.IsNullOrEmpty(Review?.Title))
+                        {
+                            <MudText Typo="Typo.h6" Class="mb-2">@Review.Title</MudText>
+                        }
+                        <MudText Typo="Typo.body1" Class="mb-2">@Review?.ReviewText</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @Review?.ReviewDate?.ToString("MMM dd, yyyy")
+                        </MudText>
+                        @if (Review?.IsVerifiedPurchase == true)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Text="Verified Purchase" Icon="@Icons.Material.Filled.Verified" Class="ml-2" />
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Existing Response Display (if any) -->
+                @if (!string.IsNullOrEmpty(Review?.Response))
+                {
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-4 mb-4" Style="background-color: var(--mud-palette-info-lighten);">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Reply" Class="mr-2" /> Current Response
+                            </MudText>
+                            <MudText Typo="Typo.body1" Class="mb-2">@Review.Response</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @Review.ResponseDate?.ToString("MMM dd, yyyy")
+                            </MudText>
+                        </MudPaper>
+                    </MudItem>
+                }
+
+                <!-- Response Form -->
+                <MudItem xs="12">
+                    <MudForm @ref="form" @bind-IsValid="@success" @bind-Errors="@errors">
+                        <MudTextField T="string" 
+                                    Label="Your Response" 
+                                    @bind-Value="ResponseText"
+                                    Multiline="true" 
+                                    Rows="4"
+                                    MaxLength="1000"
+                                    Counter="1000"
+                                    Required="true"
+                                    RequiredError="Response is required"
+                                    Placeholder="Write a professional and helpful response to this review..."
+                                    FullWidth="true" />
+                        
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="mr-1" />
+                            Your response will be visible to the customer and sent via email notification.
+                        </MudText>
+                    </MudForm>
+                </MudItem>
+
+                <!-- Response Guidelines -->
+                <MudItem xs="12">
+                    <MudExpansionPanels>
+                        <MudExpansionPanel>
+                            <TitleContent>
+                                <div style="display: flex; align-items: center;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Help" class="mr-3"></MudIcon>
+                                    <MudText>Response Guidelines</MudText>
+                                </div>
+                            </TitleContent>
+                            <ChildContent>
+                                <MudList T="string" Dense="true">
+                                    <MudListItem T="string">
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" class="mr-2" />
+                                        Thank the customer for their feedback
+                                    </MudListItem>
+                                    <MudListItem T="string">
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" class="mr-2" />
+                                        Address specific concerns or questions
+                                    </MudListItem>
+                                    <MudListItem T="string">
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" class="mr-2" />
+                                        Provide helpful information or solutions
+                                    </MudListItem>
+                                    <MudListItem T="string">
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" class="mr-2" />
+                                        Maintain a professional and friendly tone
+                                    </MudListItem>
+                                    <MudListItem T="string">
+                                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" class="mr-2" />
+                                        Invite further communication if needed
+                                    </MudListItem>
+                                </MudList>
+                            </ChildContent>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" OnClick="@(async () => await RemoveResponse())" 
+                   Disabled="@(string.IsNullOrEmpty(Review?.Response))" 
+                   Style="@(string.IsNullOrEmpty(Review?.Response) ? "display: none;" : "")">
+            Remove Response
+        </MudButton>
+        <MudButton Color="Color.Primary" 
+                   OnClick="@(async () => await SubmitResponse())" 
+                   Disabled="@(!success || isSubmitting)"
+                   Variant="Variant.Filled">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">@(!string.IsNullOrEmpty(Review?.Response) ? "Updating..." : "Sending...")</MudText>
+            }
+            else
+            {
+                <MudText>@(!string.IsNullOrEmpty(Review?.Response) ? "Update Response" : "Send Response")</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public ProductReview? Review { get; set; }
+    
+    private MudForm form = null!;
+    private bool success;
+    private string[] errors = Array.Empty<string>();
+    private string ResponseText = string.Empty;
+    private bool isSubmitting = false;
+
+    protected override void OnInitialized()
+    {
+        if (Review != null)
+        {
+            ResponseText = Review.Response ?? string.Empty;
+        }
+    }
+
+    private async Task SubmitResponse()
+    {
+        if (Review == null || string.IsNullOrWhiteSpace(ResponseText))
+            return;
+
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            Review.Response = ResponseText.Trim();
+            Review.ResponseDate = DateTime.UtcNow;
+            Review.ModifiedDate = DateTime.UtcNow;
+
+            await AppService.UpdateProductReviewAsync(Review.Id!.Value, Review);
+            
+            Snackbar.Add("Response sent successfully! Customer will be notified via email.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(Review));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to send response: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveResponse()
+    {
+        if (Review == null)
+            return;
+
+        bool? result = await DialogService.ShowMessageBox(
+            "Confirm",
+            "Are you sure you want to remove this response?",
+            "Remove",
+            "Cancel");
+
+        if (result == true)
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            try
+            {
+                Review.Response = null;
+                Review.ResponseDate = null;
+                Review.ModifiedDate = DateTime.UtcNow;
+
+                await AppService.UpdateProductReviewAsync(Review.Id!.Value, Review);
+                
+                Snackbar.Add("Response removed successfully.", Severity.Info);
+                MudDialog.Close(DialogResult.Ok(Review));
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to remove response: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                isSubmitting = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

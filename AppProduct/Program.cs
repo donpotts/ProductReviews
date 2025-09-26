@@ -176,6 +176,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddScoped<ImageService>();
+builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
 
 
 

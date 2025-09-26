@@ -5,8 +5,8 @@
     "Description": "Electronic devices and gadgets",
     "IconUrl": "/icons/electronics.svg",
     "ParentCategoryId": "",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Root category for all electronic products",
     "UserId": 1
   },
@@ -16,8 +16,8 @@
     "Description": "Portable and desktop computers",
     "IconUrl": "/icons/computer.svg",
     "ParentCategoryId": "1",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Computing devices subcategory",
     "UserId": 1
   },
@@ -27,8 +27,8 @@
     "Description": "High-performance gaming computers",
     "IconUrl": "/icons/gaming-computer.svg",
     "ParentCategoryId": "2",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Specialized gaming hardware",
     "UserId": 1
   },
@@ -38,8 +38,8 @@
     "Description": "Professional computers for business",
     "IconUrl": "/icons/business-computer.svg",
     "ParentCategoryId": "2",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Enterprise and professional use",
     "UserId": 1
   },
@@ -49,8 +49,8 @@
     "Description": "Smartphones and tablets",
     "IconUrl": "/icons/mobile.svg",
     "ParentCategoryId": "1",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Portable mobile technology",
     "UserId": 1
   },
@@ -60,8 +60,8 @@
     "Description": "Audio devices and accessories",
     "IconUrl": "/icons/audio.svg",
     "ParentCategoryId": "1",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Sound and music equipment",
     "UserId": 1
   },
@@ -71,8 +71,8 @@
     "Description": "Over-ear and in-ear audio devices",
     "IconUrl": "/icons/headphones.svg",
     "ParentCategoryId": "6",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Personal audio devices",
     "UserId": 1
   },
@@ -82,8 +82,8 @@
     "Description": "Bluetooth and wired speakers",
     "IconUrl": "/icons/speakers.svg",
     "ParentCategoryId": "6",
-    "CreatedDate": "2024-01-01T00:00:00",
-    "ModifiedDate": "2024-01-01T00:00:00",
+    "CreatedDate": "2025-01-01T00:00:00",
+    "ModifiedDate": "2025-01-01T00:00:00",
     "Notes": "Audio output devices",
     "UserId": 1
   }

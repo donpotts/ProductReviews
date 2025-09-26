@@ -50,4 +50,13 @@ public class ProductReview
 
     [DataMember]
     public long? UserId { get; set; }
+
+    [DataMember]
+    public string? Response { get; set; }
+
+    [DataMember]
+    public DateTime? ResponseDate { get; set; }
+
+    [DataMember]
+    public long? ResponseUserId { get; set; }
 }

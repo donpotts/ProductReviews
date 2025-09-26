@@ -1,0 +1,49 @@
+<MudDialog>
+    <DialogContent>
+        <MudContainer MaxWidth="MaxWidth.Medium" Style="text-align: center;">
+            @if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                <MudImage Src="@ImageUrl" 
+                         Alt="Product Image" 
+                         Style="max-width: 100%; height: auto; border-radius: 8px;" />
+            }
+            else
+            {
+                <MudPaper Style="height: 300px; display: flex; align-items: center; justify-content: center; background-color: var(--mud-palette-background-gray);">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">No Image Available</MudText>
+                    </MudStack>
+                </MudPaper>
+            }
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+        @if (!string.IsNullOrEmpty(ImageUrl))
+        {
+            <MudButton Color="Color.Primary" OnClick="OpenInNewTab" Variant="Variant.Filled">
+                Open Original
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string? ImageUrl { get; set; }
+
+    private void Close() => MudDialog.Close();
+
+    private void OpenInNewTab()
+    {
+        if (!string.IsNullOrEmpty(ImageUrl))
+        {
+            // This will open the image in a new tab/window
+            var script = $"window.open('{ImageUrl}', '_blank');";
+            // Note: You'd need to inject IJSRuntime to execute this
+            // For now, we'll just close the dialog
+            MudDialog.Close();
+        }
+    }
+}

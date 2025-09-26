@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using AppProduct.Data;
 using AppProduct.Shared.Models;
+using AppProduct.Services;
 
 namespace AppProduct.Controllers;
 
@@ -14,7 +15,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ProductReviewController(ApplicationDbContext ctx) : ControllerBase
+public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificationService emailNotificationService) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -57,8 +58,25 @@ public class ProductReviewController(ApplicationDbContext ctx) : ControllerBase
         }
     
         await ctx.ProductReview.AddAsync(productReview);
-
         await ctx.SaveChangesAsync();
+
+        // Send new review notification email
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var product = await ctx.Product.FindAsync(productReview.ProductId);
+                if (product != null)
+                {
+                    await emailNotificationService.SendNewReviewNotificationAsync(productReview, product);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the review creation
+                Console.WriteLine($"Failed to send new review notification: {ex.Message}");
+            }
+        });
 
         return Created($"/productreview/{productReview.Id}", productReview);
     }
@@ -76,9 +94,32 @@ public class ProductReviewController(ApplicationDbContext ctx) : ControllerBase
             return NotFound();
         }
 
-        ctx.Entry(productReview).CurrentValues.SetValues(update);
+        var wasResponseEmpty = string.IsNullOrEmpty(productReview.Response);
+        var hasNewResponse = !string.IsNullOrEmpty(update.Response);
 
+        ctx.Entry(productReview).CurrentValues.SetValues(update);
         await ctx.SaveChangesAsync();
+
+        // Send response notification email if a response was added
+        if (wasResponseEmpty && hasNewResponse)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var product = await ctx.Product.FindAsync(productReview.ProductId);
+                    if (product != null)
+                    {
+                        await emailNotificationService.SendReviewResponseNotificationAsync(productReview, product);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error but don't fail the update
+                    Console.WriteLine($"Failed to send response notification: {ex.Message}");
+                }
+            });
+        }
 
         return Ok(productReview);
     }
@@ -175,6 +216,9 @@ public class ProductReviewController(ApplicationDbContext ctx) : ControllerBase
                             existingReview.HelpfulVotes = productReview.HelpfulVotes ?? 0;
                             existingReview.Notes = productReview.Notes;
                             existingReview.UserId = productReview.UserId;
+                            existingReview.Response = productReview.Response;
+                            existingReview.ResponseDate = productReview.ResponseDate;
+                            existingReview.ResponseUserId = productReview.ResponseUserId;
                             existingReview.ModifiedDate = now;
                             
                             ctx.ProductReview.Update(existingReview);

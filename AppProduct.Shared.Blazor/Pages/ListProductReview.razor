@@ -101,9 +101,28 @@
                                 }
                             </MudStack>
                         </MudCardContent>
+                        @if (!string.IsNullOrEmpty(review.Response))
+                        {
+                            <MudDivider Class="my-2" />
+                            <MudStack Class="pa-3" Style="background-color: var(--mud-palette-info-lighten);">
+                                <MudText Typo="Typo.subtitle2" Style="display: flex; align-items: center;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Reply" Class="mr-2" Size="Size.Small" />
+                                    Business Response
+                                </MudText>
+                                <MudText Typo="Typo.body2">@review.Response</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @review.ResponseDate?.ToString("MMM dd, yyyy")
+                                </MudText>
+                            </MudStack>
+                        }
                         <MudCardActions>
                             <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="@Size.Small" title="Edit" OnClick="@(e => OnEdit(review))" />
                             <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="@Size.Small" title="Delete" OnClick="@(e => OnDelete(review))" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Reply" 
+                                         Size="@Size.Small" 
+                                         title="@(string.IsNullOrEmpty(review.Response) ? "Add Response" : "Edit Response")" 
+                                         OnClick="@(e => OnRespondToReview(review))" 
+                                         Color="@(string.IsNullOrEmpty(review.Response) ? Color.Primary : Color.Secondary)" />
                             <MudSpacer />
                             <MudText Typo="Typo.caption" Color="Color.Tertiary">
                                 @review.ReviewDate?.ToString("MMM dd, yyyy")
@@ -160,11 +179,35 @@ else
         <PropertyColumn Property="x => x!.ModifiedDate" Title="ModifiedDate" />
         <PropertyColumn Property="x => x!.Notes" Title="Notes" />
         <PropertyColumn Property="x => x!.UserId" Title="UserId" />
-        <TemplateColumn Style="width: 50px;" StickyRight="true" Sortable="false" Filterable="false">
+        <TemplateColumn Property="x => x!.Response" Title="Response" Sortable="false">
+            <CellTemplate>
+                @if (!string.IsNullOrEmpty(context.Item?.Response))
+                {
+                    <MudStack>
+                        <MudText Typo="Typo.body2" Style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            @context.Item.Response
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @context.Item.ResponseDate?.ToString("MMM dd")
+                        </MudText>
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">No response</MudText>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Style="width: 80px;" StickyRight="true" Sortable="false" Filterable="false">
             <CellTemplate>
                 <MudStack Row="true">
                     <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="@Size.Small" title="Edit" OnClick="@(e => OnEdit(context.Item!))" />
                     <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="@Size.Small" title="Delete" OnClick="@(e => OnDelete(context.Item!))" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Reply" 
+                                 Size="@Size.Small" 
+                                 title="@(string.IsNullOrEmpty(context.Item?.Response) ? "Add Response" : "Edit Response")" 
+                                 OnClick="@(e => OnRespondToReview(context.Item!))"
+                                 Color="@(string.IsNullOrEmpty(context.Item?.Response) ? Color.Primary : Color.Secondary)" />
                 </MudStack>
             </CellTemplate>
         </TemplateColumn>
@@ -318,10 +361,31 @@ else
             {
                 await AppService.DeleteProductReviewAsync(record.Id!.Value);
                 await (grid?.ReloadServerData() ?? Task.CompletedTask);
+                if (_isCardView)
+                {
+                    await LoadCardData();
+                }
             }
             catch (Exception ex)
             {
                 Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async void OnRespondToReview(ProductReview record)
+    {
+        DialogParameters<ReviewResponseDialog> dialogParams = new() { { x => x.Review, record } };
+        DialogOptions dialogOptions = new() { FullWidth = true, MaxWidth = MaxWidth.Large, CloseOnEscapeKey = true };
+
+        var result = await DialogService.Show<ReviewResponseDialog>("Respond to Review", dialogParams, dialogOptions).Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await (grid?.ReloadServerData() ?? Task.CompletedTask);
+            if (_isCardView)
+            {
+                await LoadCardData();
             }
         }
     }

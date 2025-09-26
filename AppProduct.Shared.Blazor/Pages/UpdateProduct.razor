@@ -31,7 +31,28 @@ else
                 <MudTextField @bind-Value="record.Description" For="@(() => record.Description)" Label="Description" />
                 <MudTextField @bind-Value="record.DetailedSpecs" For="@(() => record.DetailedSpecs)" Label="DetailedSpecs" />
                 <MudNumericField @bind-Value="record.Price" For="@(() => record.Price)" Label="Price" />
-                <MudTextField @bind-Value="record.ImageUrl" For="@(() => record.ImageUrl)" Label="ImageUrl" />
+                <MudStack>
+                    <MudTextField @bind-Value="record.ImageUrl" For="@(() => record.ImageUrl)" Label="ImageUrl" />
+                    @if (!string.IsNullOrEmpty(record.ImageUrl))
+                    {
+                        <MudPaper Class="pa-4" Style="text-align: center; background-color: var(--mud-palette-background-gray);">
+                            <MudText Typo="Typo.caption" Class="mb-2">Image Preview:</MudText>
+                            <MudImage Src="@GetImageUrl(record.ImageUrl)" 
+                                     Alt="Product Preview" 
+                                     Style="max-width: 200px; max-height: 150px; border-radius: 4px;" 
+                                     ObjectFit="ObjectFit.Cover" />
+                        </MudPaper>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4" Style="text-align: center; background-color: var(--mud-palette-background-gray);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">No Image Preview</MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
                 <MudCheckBox @bind-Value="record.InStock" For="@(() => record.InStock)" Label="InStock"></MudCheckBox>
                 <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ReleaseDate" For="@(() => record.ReleaseDate)" Label="ReleaseDate" />
                 <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
@@ -114,6 +135,23 @@ else
         Uri absolute = new(baseUri, uri);
 
         return absolute.ToString();
+    }
+
+    private string GetImageUrl(string? imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl))
+            return string.Empty;
+            
+        // If it's already a full URL, return as-is
+        if (imageUrl.StartsWith("http://") || imageUrl.StartsWith("https://"))
+            return imageUrl;
+            
+        // If it starts with /, make it relative to base URL
+        if (imageUrl.StartsWith("/"))
+            return GetAbsoluteUri(imageUrl);
+            
+        // Otherwise prepend /
+        return GetAbsoluteUri($"/{imageUrl}");
     }
 
     protected override async Task OnInitializedAsync()
