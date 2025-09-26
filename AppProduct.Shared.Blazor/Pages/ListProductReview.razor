@@ -437,20 +437,19 @@ else
                 var ar = result?.Value.ToList().Select(x => new
                 {
                         x.Id,
-    x.ProductId,
-    x.CustomerName,
-    x.CustomerEmail,
-    x.Rating,
-    x.Title,
-    x.ReviewText,
-    x.ReviewDate,
-    x.IsVerifiedPurchase,
-    x.HelpfulVotes,
-    x.CreatedDate,
-    x.ModifiedDate,
-    x.Notes,
-    x.UserId,
-
+                        x.ProductId,
+                        x.CustomerName,
+                        x.CustomerEmail,
+                        x.Rating,
+                        x.Title,
+                        x.ReviewText,
+                        x.ReviewDate,
+                        x.IsVerifiedPurchase,
+                        x.HelpfulVotes,
+                        x.CreatedDate,
+                        x.ModifiedDate,
+                        x.Notes,
+                        x.UserId,
                 });
 
                 using var memoryStream = new MemoryStream();

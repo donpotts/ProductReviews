@@ -1,0 +1,37 @@
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.Text.Json
+@using Microsoft.Extensions.Logging
+@inject AppService AppService
+@inject IJSRuntime JSRuntime
+@inject ILogger<NotificationBell> Logger
+
+<MudBadge Content="@_unreadCount" Overlap="true" Color="Color.Error" Visible="@(_unreadCount > 0)">
+    <MudIconButton Icon="@Icons.Material.Filled.Notifications" 
+                  Color="Color.Inherit" 
+                  Size="Size.Medium"
+                  title="Notifications"
+                  OnClick="LoadNotifications" />
+</MudBadge>
+
+@code {
+    private int _unreadCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNotifications();
+    }
+
+    private async Task LoadNotifications()
+    {
+        try
+        {
+            _unreadCount = await AppService.GetUnreadNotificationCountAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading notification count");
+        }
+    }
+}

@@ -1,32 +1,60 @@
 @inject AppService AppService
 @inject ISnackbar Snackbar
 @inject HttpClient HttpClient
+@using AppProduct.Shared.Models
 
 <EditForm Model="@record" OnValidSubmit="@OnSubmit">
     <DataAnnotationsValidator />
     <MudDialog>
         <TitleContent>
-            <MudText Typo="Typo.h6">Add Product Review</MudText>
+            <MudText Typo="Typo.h6">
+                <MudIcon Icon="@Icons.Material.Filled.RateReview" Class="mr-2" />
+                Add Product Review
+            </MudText>
         </TitleContent>
         <DialogContent>
-            <MudNumericField @bind-Value="record.ProductId" For="@(() => record.ProductId)" Label="ProductId" />
-            <MudTextField @bind-Value="record.CustomerName" For="@(() => record.CustomerName)" Label="CustomerName" />
-            <MudTextField @bind-Value="record.CustomerEmail" For="@(() => record.CustomerEmail)" Label="CustomerEmail" />
-            <MudNumericField @bind-Value="record.Rating" For="@(() => record.Rating)" Label="Rating" />
-            <MudTextField @bind-Value="record.Title" For="@(() => record.Title)" Label="Title" />
-            <MudTextField @bind-Value="record.ReviewText" For="@(() => record.ReviewText)" Label="ReviewText" />
-            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ReviewDate" For="@(() => record.ReviewDate)" Label="ReviewDate" />
-            <MudCheckBox @bind-Value="record.IsVerifiedPurchase" For="@(() => record.IsVerifiedPurchase)" Label="IsVerifiedPurchase" />
-            <MudNumericField @bind-Value="record.HelpfulVotes" For="@(() => record.HelpfulVotes)" Label="HelpfulVotes" />
-            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.CreatedDate" For="@(() => record.CreatedDate)" Label="CreatedDate" />
-            <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />
-            <MudTextField @bind-Value="record.Notes" For="@(() => record.Notes)" Label="Notes" />
-            <MudNumericField @bind-Value="record.UserId" For="@(() => record.UserId)" Label="UserId" />
+            <MudStack Spacing="4" Style="min-width: 500px;">
+                <!-- Product Selection -->
+                <MudSelect T="long?" @bind-Value="record.ProductId" For="@(() => record.ProductId)" 
+                          Label="Select Product" Required="true" Placeholder="Choose a product to review">
+                    @if (products != null)
+                    {
+                        @foreach (var product in products)
+                        {
+                            <MudSelectItem Value="@product.Id">@product.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
 
+                <!-- Customer Information -->
+                <MudTextField @bind-Value="record.CustomerName" For="@(() => record.CustomerName)" 
+                             Label="Your Name" Required="true" Placeholder="Enter your full name" />
+                
+                <MudTextField @bind-Value="record.CustomerEmail" For="@(() => record.CustomerEmail)" 
+                             Label="Email Address" Required="true" InputType="InputType.Email" 
+                             Placeholder="your.email@example.com" />
+
+                <!-- Star Rating -->
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText>Rating: <MudText Typo="Typo.caption" Color="Color.Error" Style="display: inline;">*</MudText></MudText>
+                    <StarRating @bind-Value="ratingValue" Size="Size.Medium" ShowRatingText="true" />
+                </MudStack>
+                
+                <MudTextField @bind-Value="record.Title" For="@(() => record.Title)" 
+                             Label="Review Title" Placeholder="Summarize your experience" />
+                
+                <MudTextField @bind-Value="record.ReviewText" For="@(() => record.ReviewText)" 
+                             Label="Your Review" Lines="4" Required="true"
+                             Placeholder="Share your thoughts about this product..." />
+
+                <MudCheckBox @bind-Value="record.IsVerifiedPurchase" For="@(() => record.IsVerifiedPurchase)" 
+                            Label="I am a verified purchaser of this product" Color="Color.Success" />
+            </MudStack>
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="OnCancel">Cancel</MudButton>
-            <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary">Add</MudButton>
+            <MudButton OnClick="OnCancel" Variant="Variant.Text">Cancel</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Variant="Variant.Filled" 
+                      StartIcon="@Icons.Material.Filled.Save" Disabled="@(!IsFormValid)">Add Review</MudButton>
         </DialogActions>
     </MudDialog>
 </EditForm>
@@ -36,25 +64,16 @@
     MudDialogInstance? MudDialog { get; set; }
 
     private ProductReview record = new();
+    private List<Product>? products;
+    private decimal? ratingValue;
 
-    private string GetAbsoluteUri(string uri)
-    {
-        if (!uri.StartsWith("/"))
-        {
-            return uri;
-        }
-
-        var baseUri = HttpClient.BaseAddress;
-
-        if (baseUri == null)
-        {
-            throw new Exception("Unable to determine base address");
-        }
-
-        Uri absolute = new(baseUri, uri);
-
-        return absolute.ToString();
-    }
+    // Form validation helper
+    private bool IsFormValid => 
+        record.ProductId.HasValue && 
+        !string.IsNullOrWhiteSpace(record.CustomerName) && 
+        !string.IsNullOrWhiteSpace(record.CustomerEmail) && 
+        !string.IsNullOrWhiteSpace(record.ReviewText) && 
+        ratingValue.HasValue;
     
     protected override async Task OnInitializedAsync()
     {
@@ -62,6 +81,16 @@
 
         try
         {
+            // Set default values
+            var now = DateTime.Now;
+            record.ReviewDate = now;
+            record.CreatedDate = now;
+            record.ModifiedDate = now;
+            record.HelpfulVotes = 0;
+            
+            // Load products for dropdown
+            var productArray = await AppService.ListProductAsync();
+            products = productArray?.ToList();
         }
         catch(Exception ex)
         {
@@ -78,34 +107,22 @@
     {
         try
         {
+            // Set the rating from the star component
+            record.Rating = ratingValue;
+            
+            // Ensure dates are set
+            var now = DateTime.Now;
+            record.ReviewDate ??= now;
+            record.CreatedDate ??= now;
+            record.ModifiedDate = now;
+            
             await AppService.InsertProductReviewAsync(record);
+            Snackbar.Add("Review added successfully!", Severity.Success);
             MudDialog?.Close();
         }
         catch (Exception ex)
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"Error adding review: {ex.Message}", Severity.Error);
         }
-    }
-
-    private async Task<string?> UploadImageAsync(IBrowserFile file, int maxWidth = 256, int maxHeight = 256)
-    {
-        if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
-        {
-            Snackbar.Add("Only PNG or JPEG images can be uploaded.", Severity.Error);
-            return null;
-        }
-
-        var image = await file.RequestImageFileAsync("image/png", maxWidth, maxHeight);
-
-        try
-        {
-            return await AppService.UploadImageAsync(image);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-
-        return null;
     }
 }

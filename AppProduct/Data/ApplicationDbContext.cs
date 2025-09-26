@@ -14,6 +14,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Feature> Feature => Set<Feature>();
     public DbSet<ProductReview> ProductReview => Set<ProductReview>();
     public DbSet<Tag> Tag => Set<Tag>();
+    public DbSet<Notification> Notification => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

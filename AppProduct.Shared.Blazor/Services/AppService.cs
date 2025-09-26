@@ -880,4 +880,109 @@ public class AppService(
 
     public record ProductChatResponse(string Answer, IEnumerable<ProductSource>? Sources);
     public record ProductSource(long? Id, string? Name, decimal? Price);
+
+    // Notification methods
+    public async Task<ODataResult<Notification>?> ListNotificationODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return await GetODataAsync<Notification>("notification", top, skip, orderby, filter, count, expand);
+    }
+
+    public async Task<Notification[]?> ListNotificationAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/notification");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Notification[]>();
+    }
+
+    public async Task<Notification?> GetNotificationByIdAsync(long key)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/notification/{key}");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Notification>();
+    }
+
+    public async Task UpdateNotificationAsync(long key, Notification data)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/notification/{key}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(data);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task<Notification?> InsertNotificationAsync(Notification data)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(data);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Notification>();
+    }
+
+    public async Task DeleteNotificationAsync(long key)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/notification/{key}");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task MarkNotificationAsReadAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/notification/markAsRead/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task MarkAllNotificationsAsReadAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/markAllAsRead");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task<int> GetUnreadNotificationCountAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/notification/unreadCount");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<int>();
+    }
+
+    public async Task<object?> BulkUpsertNotificationAsync(IEnumerable<Notification> data)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/bulkUpsert");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(data);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<object>();
+    }
 }

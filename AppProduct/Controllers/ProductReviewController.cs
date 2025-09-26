@@ -15,7 +15,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificationService emailNotificationService) : ControllerBase
+public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificationService emailNotificationService, INotificationService notificationService, IServiceProvider serviceProvider) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -60,15 +60,27 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
         await ctx.ProductReview.AddAsync(productReview);
         await ctx.SaveChangesAsync();
 
-        // Send new review notification email
+        // Send new review notification email and in-app notification
         _ = Task.Run(async () =>
         {
             try
             {
-                var product = await ctx.Product.FindAsync(productReview.ProductId);
+                using var scope = serviceProvider.CreateScope();
+                var scopedContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                
+                var product = await scopedContext.Product.FindAsync(productReview.ProductId);
                 if (product != null)
                 {
                     await emailNotificationService.SendNewReviewNotificationAsync(productReview, product);
+                    
+                    // Create in-app notification for admins (system-wide)
+                    await notificationService.CreateNotificationAsync(
+                        $"New Review for {product.Name}",
+                        $"{productReview.CustomerName} left a {productReview.Rating}-star review: \"{productReview.Title}\"",
+                        "Info",
+                        null, // System-wide notification
+                        $"/products/{productReview.ProductId}#reviews"
+                    );
                 }
             }
             catch (Exception ex)
@@ -100,17 +112,41 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
         ctx.Entry(productReview).CurrentValues.SetValues(update);
         await ctx.SaveChangesAsync();
 
-        // Send response notification email if a response was added
+        // Send response notification email and in-app notification if a response was added
         if (wasResponseEmpty && hasNewResponse)
         {
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var product = await ctx.Product.FindAsync(productReview.ProductId);
+                    using var scope = serviceProvider.CreateScope();
+                    var scopedContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    
+                    var product = await scopedContext.Product.FindAsync(productReview.ProductId);
                     if (product != null)
                     {
                         await emailNotificationService.SendReviewResponseNotificationAsync(productReview, product);
+                        
+                        // Create in-app notification for the customer if they have a user account
+                        if (productReview.UserId.HasValue)
+                        {
+                            await notificationService.CreateNotificationAsync(
+                                $"Response to Your Review",
+                                $"We've responded to your review of {product.Name}",
+                                "Success",
+                                productReview.UserId.Value,
+                                $"/products/{productReview.ProductId}#reviews"
+                            );
+                        }
+                        
+                        // Also notify admins about the response being sent
+                        await notificationService.CreateNotificationAsync(
+                            $"Review Response Sent",
+                            $"Response sent to {productReview.CustomerName} for their review of {product.Name}",
+                            "Info",
+                            null, // System-wide notification
+                            $"/products/{productReview.ProductId}#reviews"
+                        );
                     }
                 }
                 catch (Exception ex)

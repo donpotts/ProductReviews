@@ -28,9 +28,9 @@ public class EmailNotificationService : IEmailNotificationService
     {
         try
         {
-            var clientId = _configuration["MicrosoftGraph:ClientId"];
-            var clientSecret = _configuration["MicrosoftGraph:ClientSecret"];
-            var tenantId = _configuration["MicrosoftGraph:TenantId"];
+            var clientId = _configuration["EmailSettings:ClientId"];
+            var clientSecret = _configuration["EmailSettings:ClientSecret"];
+            var tenantId = _configuration["EmailSettings:TenantId"];
 
             if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) || string.IsNullOrEmpty(tenantId))
             {
@@ -59,7 +59,7 @@ public class EmailNotificationService : IEmailNotificationService
 
         try
         {
-            var adminEmail = _configuration["EmailNotifications:AdminEmail"];
+            var adminEmail = _configuration["EmailSettings:AdminEmail"];
             if (string.IsNullOrEmpty(adminEmail))
             {
                 _logger.LogWarning("Admin email is not configured. Cannot send notification.");
@@ -89,7 +89,7 @@ public class EmailNotificationService : IEmailNotificationService
                 }
             };
 
-            var senderEmail = _configuration["MicrosoftGraph:SenderEmail"];
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
             await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
             {
                 Message = message
@@ -142,7 +142,7 @@ public class EmailNotificationService : IEmailNotificationService
                 }
             };
 
-            var senderEmail = _configuration["MicrosoftGraph:SenderEmail"];
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
             await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
             {
                 Message = message
