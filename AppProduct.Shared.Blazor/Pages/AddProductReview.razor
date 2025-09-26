@@ -15,16 +15,36 @@
         <DialogContent>
             <MudStack Spacing="4" Style="min-width: 500px;">
                 <!-- Product Selection -->
-                <MudSelect T="long?" @bind-Value="record.ProductId" For="@(() => record.ProductId)" 
-                          Label="Select Product" Required="true" Placeholder="Choose a product to review">
-                    @if (products != null)
-                    {
-                        @foreach (var product in products)
-                        {
-                            <MudSelectItem Value="@product.Id">@product.Name</MudSelectItem>
-                        }
-                    }
-                </MudSelect>
+                    <MudAutocomplete T="Product" Value="selectedProduct" ValueChanged="@OnProductSelected"
+                                    SearchFunc="@SearchProducts"
+                                    ToStringFunc="@(product => product?.Name ?? string.Empty)"
+                                    Label="Select Product" Required="true" 
+                                    Placeholder="Type to search for a product..."
+                                    Clearable="true" Dense="true"
+                                    ResetValueOnEmptyText="true"
+                                    CoerceText="false"
+                                    MinCharacters="1"
+                                    MaxItems="20"
+                                    DebounceInterval="300">
+                        <ItemTemplate Context="product">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText>@product.Name</MudText>
+                                @if (!string.IsNullOrEmpty(product.Description))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Tertiary">@(product.Description.Length > 50 ? product.Description.Substring(0, 50) + "..." : product.Description)</MudText>
+                                }
+                            </MudStack>
+                        </ItemTemplate>
+                        <NoItemsTemplate>
+                            <MudText Align="Align.Center" Color="Color.Tertiary">No products found</MudText>
+                        </NoItemsTemplate>
+                        <ProgressIndicatorTemplate>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="pa-2">
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <MudText Typo="Typo.body2">Searching products...</MudText>
+                            </MudStack>
+                        </ProgressIndicatorTemplate>
+                    </MudAutocomplete>
 
                 <!-- Customer Information -->
                 <MudTextField @bind-Value="record.CustomerName" For="@(() => record.CustomerName)" 
@@ -37,7 +57,7 @@
                 <!-- Star Rating -->
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudText>Rating: <MudText Typo="Typo.caption" Color="Color.Error" Style="display: inline;">*</MudText></MudText>
-                    <StarRating @bind-Value="ratingValue" Size="Size.Medium" ShowRatingText="true" />
+                    <StarRating Value="ratingValue" ValueChanged="@OnRatingChanged" Size="Size.Medium" ShowRatingText="true" />
                 </MudStack>
                 
                 <MudTextField @bind-Value="record.Title" For="@(() => record.Title)" 
@@ -64,12 +84,12 @@
     MudDialogInstance? MudDialog { get; set; }
 
     private ProductReview record = new();
-    private List<Product>? products;
     private decimal? ratingValue;
+    private Product? selectedProduct;
 
     // Form validation helper
     private bool IsFormValid => 
-        record.ProductId.HasValue && 
+        selectedProduct != null && 
         !string.IsNullOrWhiteSpace(record.CustomerName) && 
         !string.IsNullOrWhiteSpace(record.CustomerEmail) && 
         !string.IsNullOrWhiteSpace(record.ReviewText) && 
@@ -88,9 +108,7 @@
             record.ModifiedDate = now;
             record.HelpfulVotes = 0;
             
-            // Load products for dropdown
-            var productArray = await AppService.ListProductAsync();
-            products = productArray?.ToList();
+            // We'll use server-side search, so no need to pre-load all products
         }
         catch(Exception ex)
         {
@@ -116,6 +134,9 @@
             record.CreatedDate ??= now;
             record.ModifiedDate = now;
             
+            // Set the product ID from the selected product
+            record.ProductId = selectedProduct?.Id;
+            
             await AppService.InsertProductReviewAsync(record);
             Snackbar.Add("Review added successfully!", Severity.Success);
             MudDialog?.Close();
@@ -123,6 +144,80 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error adding review: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task<IEnumerable<Product>> SearchProducts(string value, CancellationToken token)
+    {
+        // Check if cancelled
+        if (token.IsCancellationRequested)
+            return Array.Empty<Product>();
+
+        // If no search term or too short, return empty (MinCharacters=1 handles this)
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 1)
+            return Array.Empty<Product>();
+
+        try
+        {
+            // For better performance with large datasets, use OData filtering
+            var result = await AppService.ListProductODataAsync(
+                filter: $"contains(tolower(Name), '{value.ToLower().Replace("'", "''")}') or contains(tolower(Description), '{value.ToLower().Replace("'", "''")}')",
+                orderby: "Name",
+                top: 20
+            );
+
+            return result?.Value ?? Array.Empty<Product>();
+        }
+        catch (Exception)
+        {
+            // If server search fails, return empty results
+            return Array.Empty<Product>();
+        }
+    }
+
+    private void OnProductSelected(Product? product)
+    {
+        selectedProduct = product;
+        
+        // Auto-generate review title when product is selected
+        GenerateReviewTitle();
+        
+        StateHasChanged();
+    }
+
+    private void OnRatingChanged(decimal? rating)
+    {
+        ratingValue = rating;
+        
+        // Update title when rating changes
+        GenerateReviewTitle();
+        
+        StateHasChanged();
+    }
+
+    private void GenerateReviewTitle()
+    {
+        // Only auto-generate if title is empty and we have a product
+        if (selectedProduct != null && string.IsNullOrWhiteSpace(record.Title))
+        {
+            if (ratingValue.HasValue)
+            {
+                // Generate title based on rating
+                var title = ratingValue.Value switch
+                {
+                    >= 4.5m => $"Excellent {selectedProduct.Name}!",
+                    >= 4.0m => $"Great {selectedProduct.Name}",
+                    >= 3.0m => $"Good {selectedProduct.Name}",
+                    >= 2.0m => $"Average {selectedProduct.Name}",
+                    _ => $"Disappointing {selectedProduct.Name}"
+                };
+                record.Title = title;
+            }
+            else
+            {
+                // Default title without rating
+                record.Title = $"My Review of {selectedProduct.Name}";
+            }
         }
     }
 }
