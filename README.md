@@ -1,230 +1,289 @@
-﻿# Product Reviews – AI-Powered Product Catalog & Chat
+﻿# 🚀 Product Reviews · AI-Powered Catalog & Chat Companion
 
-An end‑to‑end sample showcasing a modern Blazor WASM application with:
+![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)
+![Blazor WASM](https://img.shields.io/badge/Blazor-WASM-5C2D91?logo=blazor&logoColor=white)
+![Semantic Kernel](https://img.shields.io/badge/Semantic%20Kernel-enabled-1C7ED6)
 
-- Product, Brands, Categories, Features, Tags, Reviews (EF Core + SQLite by default)
-- Secure Identity (ASP.NET Core Identity)
-- AI Product Knowledge Chat powered by GitHub Models (OpenAI‑compatible endpoint)
-- Fallback deterministic embeddings + graceful degradation when AI credentials are missing/invalid
-- Minimal AI health probe endpoint
-- OData + OpenAPI/Swagger support
-- Responsive navigation (top bar toggle + drawer) with mobile refinements
-- Dark / Light theme switching via MudBlazor
-- CSV import & export for Products and Product Reviews (bulk upsert) using CsvHelper
-- Aggregate product rating display (average, count, per‑review breakdown)
+An opinionated sample that fuses AI-powered product knowledge chat with a modern Blazor application—fully functional even when AI credentials are missing.
 
-> Purpose: Demonstrate how to layer AI retrieval+chat over an existing domain model with minimal friction while keeping the app fully usable without AI.
+> **Mission:** Showcase how to layer retrieval-augmented chat over an existing commerce domain with minimum friction and maximum developer clarity.
 
 ---
-## Quick Start
+
+## 🧭 At a Glance
+
+- 🧱 **Full catalog stack:** Products, Brands, Categories, Features, Tags, Reviews (EF Core + SQLite by default)
+- 🛡️ **Secure identity:** ASP.NET Core Identity with ready-to-extend policies
+- 🤖 **AI product concierge:** GitHub Models (OpenAI-compatible) with graceful fallbacks
+- 🔄 **CSV import/export:** Bulk upsert via CsvHelper and MudBlazor tooling
+- 🌓 **Responsive UX:** Dark/light theming, drawer navigation, mobile refinements
+- 📊 **Ratings insights:** Aggregated stats + star breakdown per product
+
+---
+
+## 📚 Table of Contents
+
+1. [Quickstart](#-quickstart)
+2. [Tech Stack & Dependencies](#-tech-stack--dependencies)
+3. [AI Configuration](#-ai-configuration)
+4. [Data Import / Export](#-data-import--export)
+5. [Ratings & UX Highlights](#-ratings--ux-highlights)
+6. [AI Integration Deep Dive](#-ai-integration-deep-dive)
+7. [Configuration Keys](#-configuration-keys)
+8. [Folder Map](#-folder-map)
+9. [Key Files](#-key-files)
+10. [Extensibility Ideas](#-extensibility-ideas)
+11. [Troubleshooting](#-troubleshooting)
+12. [Sample API Calls](#-sample-api-calls)
+13. [Contact](#-contact)
+
+---
+
+## ⚡ Quickstart
 
 ### 1. Prerequisites
-- .NET 9 SDK
-- SQLite (bundled / no external install strictly required)
-- A GitHub Personal Access Token (classic) with `models:read` scope for AI features
 
-### 2. Clone
+- .NET 9 SDK
+- SQLite (bundled; no external install required)
+- GitHub Personal Access Token (classic) with `models:read` scope for AI features
+
+### 2. Clone & Navigate
+
 ```
 git clone https://github.com/donpotts/ProductReviews.git
 cd ProductReviews
 ```
 
 ### 3. Configure Secrets (AI)
-Use user-secrets (local dev) so tokens never enter source control:
+
+Use user-secrets so your PAT never lands in source control:
+
 ```
 dotnet user-secrets init --project AppProduct
-# Set your GitHub Models PAT (models:read scope)
 dotnet user-secrets set "GitHubAI:ApiKey" "ghp_xxx" --project AppProduct
 ```
+
 Optional overrides:
+
 ```
 dotnet user-secrets set "GitHubAI:Endpoint" "https://models.inference.ai.azure.com" --project AppProduct
-# Chat model
 dotnet user-secrets set "GitHubAI:ChatModel" "gpt-4o-mini" --project AppProduct
-# Embedding model
 dotnet user-secrets set "GitHubAI:EmbeddingModel" "text-embedding-3-small" --project AppProduct
 ```
-If secrets are not set the app still runs; AI chat degrades with a deterministic fallback message.
 
-### 4. Database Migrations
+> **Heads-up:** No secrets? No problem. The UI stays fully functional while AI calls return a deterministic guidance message.
+
+### 4. Apply Migrations
+
 ```
 cd AppProduct
-# (If migrations not yet created you can add them - sample likely already has them.)
 dotnet ef database update
 ```
-A local SQLite DB file will be created (e.g., in `bin/Debug/...`).
 
-### 5. Run
+SQLite spins up a local DB file under `bin/Debug/...`.
+
+### 5. Run the App
+
 ```
 dotnet run --project AppProduct
 ```
-Browse to: http://localhost:5000 (or the Kestrel-assigned port). Register a user, sign in, explore products, open Product Chat.
+
+Visit http://localhost:5000 (or the assigned port), register, sign in, and open the Product Chat.
 
 ---
-## Data Import / Export
-CSV toolbar actions are available on both the Products and Product Reviews pages:
+
+## � Tech Stack & Dependencies
+
+### Core Framework
+- **ASP.NET Core 9.0** — Web API and Razor Pages host
+- **Blazor WebAssembly** — Interactive client-side UI
+- **Entity Framework Core** — Data access layer with SQLite provider
+- **ASP.NET Core Identity** — Authentication and authorization
+
+### UI & Styling
+- **MudBlazor** — Material Design component library
+- **Bootstrap 5** — CSS framework for responsive design
+- **Material Design Icons** — Icon set for UI elements
+
+### AI & Machine Learning
+- **Microsoft Semantic Kernel** — AI orchestration framework
+- **GitHub Models** — OpenAI-compatible LLM hosting
+- **Custom embedding service** — Vector similarity for product search
+
+### Data Processing
+- **CsvHelper** — CSV import/export operations
+- **System.Text.Json** — JSON serialization
+- **OData** — Query protocol for REST APIs
+
+### Development & Tooling
+- **Swashbuckle (Swagger)** — API documentation generation
+- **Microsoft.Extensions.Hosting** — Application lifecycle management
+- **Microsoft.Extensions.Configuration** — Configuration management
+- **Microsoft.Extensions.Logging** — Structured logging
+
+### Database
+- **SQLite** — Lightweight file-based database
+- **Entity Framework Migrations** — Database schema versioning
+
+---
+
+## �🤖 AI Configuration
+
+| Concern | Implementation |
+|---------|----------------|
+| Chat completions | Semantic Kernel `AddOpenAIChatCompletion` targeting the GitHub Models endpoint |
+| Embeddings | Custom `GitHubOpenAIEmbeddingService` to override the `/embeddings` path |
+| Retrieval | In-memory cosine similarity over precomputed (or fallback) product embeddings |
+| Safety | Guard-railed system prompt keeps answers within catalog context |
+| Health check | Optional `/api/ai/chat-test` endpoint for diagnostics |
+
+### Flow Overview
+
+1. First chat request loads product data and caches embeddings.
+2. User question → embedding → top-N product matches.
+3. System prompt + curated context feed Semantic Kernel chat completion.
+4. Responses sanitized; fallback note appended if embeddings are unavailable.
+
+### Why a Custom Embedding Client?
+
+GitHub Models mandate their Azure-hosted endpoint, but the SK embedding extension (at the time of writing) lacked an endpoint override. A lightweight OpenAI-compatible HTTP client bridges that gap without complicating the pipeline.
+
+---
+
+## 📥 Data Import / Export
+
+CSV actions live on both the Products and Product Reviews pages:
 
 | Page | Actions | Notes |
 |------|---------|-------|
-| Products | Export CSV / Import CSV | Bulk upsert: existing rows matched by (Name + optional Id) update; new rows insert. Related collections (Category/Brand/etc.) not created during import (simplify demo). |
-| Product Reviews | Export CSV / Import CSV | Bulk upsert by (ProductId + CustomerEmail + Title if Id missing). Adds or updates review fields (Rating, Text, HelpfulVotes, Verified flag). |
+| Products | Export CSV / Import CSV | Bulk upsert by `(Name + optional Id)`; related collections aren’t created during import to keep the demo focused. |
+| Product Reviews | Export CSV / Import CSV | Bulk upsert by `(ProductId + CustomerEmail + Title when Id missing)`; updates rating, text, votes, and verification status. |
 
 Implementation details:
-- Uses `MudFileUpload` for client selection and `CsvHelper` for parsing.
-- Headers are case‑insensitive; missing columns are ignored.
-- Each import shows a snackbar summary: processed / added / updated.
-- Server bulk endpoint returns structured counts.
 
-Minimal column examples:
+- Uses `MudFileUpload` for client-side file selection and `CsvHelper` for parsing.
+- Header names are case-insensitive; missing columns are ignored gracefully.
+- Import results surface via snackbar (processed / added / updated).
+- Server endpoint returns structured counts for telemetry or logging.
+
+Minimal column sets:
+
 ```
 Products: Name,Description,Price,InStock,ReleaseDate
 ProductReviews: ProductId,CustomerName,CustomerEmail,Rating,Title,ReviewText,ReviewDate,IsVerifiedPurchase
 ```
 
 ---
-## Ratings Display
-Products grid shows:
-- Average rating (computed from associated reviews with a value)
-- Total review count
-- Optional breakdown panel (star distribution) rendered via `ProductRatingDisplay` (small star size for compact layout)
-If a product has no reviews a muted "No reviews" label is shown.
+
+## ⭐ Ratings & UX Highlights
+
+- Average rating + review count per product with “No reviews” fallback state
+- Optional star-distribution panel via `ProductRatingDisplay` (compact star sizing)
+- Responsive navigation bar + drawer combo with preserved user toggles
+- Mobile-friendly horizontal scroll keeps login/theme toggles accessible
+- Dark/light theme persistence and polished MudBlazor loading indicators
 
 ---
-## AI Integration Overview
 
-| Concern | Implementation |
-|---------|----------------|
-| Chat Model | Semantic Kernel `AddOpenAIChatCompletion` pointed at GitHub Models endpoint |
-| Embeddings | Custom `GitHubOpenAIEmbeddingService` (because embedding extension lacked endpoint override) hitting `/embeddings` |
-| Fallback | Deterministic 32-d hash embedding + NoOp chat when key absent |
-| Retrieval | In-memory cosine similarity over precomputed (or fallback) product embeddings |
-| Safety | Hard system prompt restricts answers to catalog context only |
-| Health Check | (Optional) `/api/ai/chat-test` (commented or available depending on branch) |
+## 🧠 AI Integration Deep Dive
 
-### Flow
-1. On first chat invocation product records are loaded, embeddings generated and cached in a concurrent dictionary.
-2. User question -> embedding -> top N products via cosine similarity.
-3. System + context + constrained instructions -> chat completion.
-4. Response sanitized (guard rails: rejects politics/weather/news/sports / unknown questions).
-5. Fallback note appended if embeddings unavailable.
-
-### Why Custom Embedding Client?
-GitHub Models requires specifying its Azure-hosted endpoint; SK’s embedding extension (version in use) did not expose an endpoint parameter. A lightweight HTTP client implementation (OpenAI-compatible schema) resolves that while keeping the Kernel pipeline simple.
-
----
-## Configuration Keys
-| Key | Description | Default (if not supplied) |
-|-----|-------------|---------------------------|
-| `GitHubAI:ApiKey` | PAT for GitHub Models | (empty) -> fallback services |
-| `GitHubAI:Endpoint` | Base URL for models | `https://models.inference.ai.azure.com` |
-| `GitHubAI:ChatModel` | Chat model id | `gpt-4o-mini` |
-| `GitHubAI:EmbeddingModel` | Embedding model id | `text-embedding-3-small` |
-
----
-## Project Structure (Simplified)
 ```
-AppProduct/                 -> Razor Pages Host (Identity, API, AI registration)
+<system>Strictly answer using provided product context.</system>
+<context>...top N product summaries...</context>
+<user_question>...</user_question>
+<instructions>...safety rails...</instructions>
+```
+
+Forbidden topics (politics, weather, news, sports, unknowns) trigger a stock refusal—keeping responses on-brand and on-scope.
+
+---
+
+## 🔑 Configuration Keys
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `GitHubAI:ApiKey` | PAT for GitHub Models | (empty) → fallback services |
+| `GitHubAI:Endpoint` | Base URL for models | `https://models.inference.ai.azure.com` |
+| `GitHubAI:ChatModel` | Chat model Id | `gpt-4o-mini` |
+| `GitHubAI:EmbeddingModel` | Embedding model Id | `text-embedding-3-small` |
+
+---
+
+## 🗂️ Folder Map (Simplified)
+
+```
+AppProduct/                 -> Razor Pages host (Identity, API, AI registration)
   Configuration/SemanticKernelConfig.cs
   Controllers/ProductChatController.cs
   Services/ProductChatService.cs
 AppProduct.Shared/          -> Domain models & shared logic
-AppProduct.Shared.Blazor/   -> Reusable MudBlazor components & pages (ProductChat.razor, NavMenu, etc.)
-AppProduct.Blazor/          -> Blazor (WASM host integration if used)
+AppProduct.Shared.Blazor/   -> Reusable MudBlazor components & pages
+AppProduct.Blazor/          -> Optional Blazor WASM host integration
 ```
 
 ---
-## Key Files to Explore
-- `SemanticKernelConfig.cs` – AI service registration, custom embedding service.
-- `ProductChatService.cs` – Retrieval + prompt assembly logic.
-- `ProductChat.razor` – UI for interactive Q&A, auto-expands latest answer.
-- `NavMenu.razor` – Responsive navigation + mobile scroll improvements.
-- `ListProduct.razor` / `ListProductReview.razor` – CSV import/export + bulk upsert logic.
+
+## 🔍 Key Files
+
+- `Configuration/SemanticKernelConfig.cs` — AI service registration + custom embedding service
+- `Services/ProductChatService.cs` — Retrieval and prompt assembly pipeline
+- `ProductChat.razor` — Interactive Q&A UI with auto-expanding answers
+- `NavMenu.razor` — Responsive navigation and mobile refinements
+- `ListProduct.razor` / `ListProductReview.razor` — CSV import/export bulk logic
 
 ---
-## Product Chat Prompt Strategy
-System Prompt enforces: "Only answer using provided product context." The runtime prompt encloses:
-```
-<system>...rules...</system>
-<context>...top N product blocks...</context>
-<user_question>...question...</user_question>
-<instructions>...factual constraints...</instructions>
-```
-This keeps the model anchored and reduces hallucinations. Forbidden topical drift triggers a stock refusal message.
+
+## 🌱 Extensibility Ideas
+
+| Goal | Next Step |
+|------|-----------|
+| Persist embeddings | Introduce a lightweight SQLite vector table |
+| Streaming answers | Use `GetStreamingChatMessageContentsAsync` for real-time UI updates |
+| Multi-turn memory | Store per-user `ChatHistory` in session or DB |
+| Observability | Log retrieval scores + token counts for diagnostics |
+| Role-aware prompts | Blend identity claims into system prompt |
+| Advanced CSV mapping | Allow admin-defined column ↔ property mapping |
+| Review moderation | Add sentiment / toxicity guardrails before saving |
 
 ---
-## Running Without AI Credentials
-What happens:
-- `IChatCompletionService` replaced by `NoOpChatCompletionService` (returns deterministic message)
-- `ITextEmbeddingGenerationService` replaced by a hash-based fallback
-- UI still functional; chat answers show configuration guidance
 
----
-## Testing AI Connectivity
-(Optional) If the `AiTestController` is enabled:
-```
-GET /api/ai/chat-test
-Response: { chat_ok: true|false, response, model, error, unauthorized }
-```
-Failures:
-- 401 -> invalid/expired PAT or missing `models:read`
-- 404 on embeddings -> endpoint path mismatch (toggle between `/embeddings` and `/v1/embeddings` if needed)
+## 🛠️ Troubleshooting
 
----
-## Security Notes
-- Store PAT only in user secrets / environment variables (never commit).
-- System prompt intentionally narrow to mitigate data leakage / off-topic injections.
-- Identity default password rules can be hardened further (see `Program.cs` / Identity options configuration).
-- Always validate any future file ingestion (PDFs, etc.) if extended.
-
----
-## UI / UX Highlights
-- Top bar + optional drawer; user toggle preserved.
-- Mobile horizontal scroll prevents overflow clipping & preserves login/dark mode buttons.
-- Auto-expand newest chat answer; collapsible history with product sources.
-- Dark / light theme switching persists across interactions.
-- Compact loading indicators (MudBlazor circular progress) for chat & CSV import state.
-
----
-## Extending the Sample
-| Goal | Suggestion |
-|------|------------|
-| Persist embeddings | Replace in-memory dict with a lightweight SQLite vector table |
-| Streaming answers | Use `GetStreamingChatMessageContentsAsync` and incremental UI append |
-| Multi-turn memory | Maintain per-user `ChatHistory` scoped to session or persisted in DB |
-| Observability | Add structured logging around retrieval scores & token counts |
-| Role-based prompts | Inject role claims into system prompt to tailor responses |
-| Advanced CSV mapping | Allow custom column ↔ property mapping UI |
-| Review moderation | Add sentiment + toxicity check before saving reviews |
-
----
-## Troubleshooting
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "AI not available (invalid key)." | Missing / wrong PAT | Re-add secret, restart app |
-| Embedding 404 | Path mismatch | Switch `/embeddings` ↔ `/v1/embeddings` in custom service |
-| All answers generic | Embeddings failed -> fallback | Verify PAT scope & model ids |
-| Chat 401 | Incorrect token or scope | Regenerate PAT with `models:read` |
-| CSV import skipped rows | Missing key fields | Ensure required columns present & clean data |
+| “AI not available (invalid key).” | Missing or incorrect PAT | Re-add secret via user-secrets and restart |
+| Embedding 404 | Endpoint path mismatch | Toggle between `/embeddings` and `/v1/embeddings` |
+| Generic answers | Fallback mode engaged | Verify PAT scope + model IDs |
+| HTTP 401 for chat | Token scope missing `models:read` | Regenerate token with correct scope |
+| CSV rows skipped | Missing key columns | Ensure required fields are present and clean |
 
-Logs from `Microsoft.SemanticKernel.Connectors.OpenAI` can show token usage; enable verbose logging in `appsettings.Development.json` if needed.
+Logs from `Microsoft.SemanticKernel.Connectors.OpenAI` reveal token usage—enable verbose logging in `appsettings.Development.json` when needed.
 
 ---
-## Sample API Snippets
-C# (ask chat directly via controller):
+
+## 📮 Sample API Calls
+
+**C#**
+
 ```csharp
 var (answer, sources) = await _productChatService.AskAsync("What products are in stock under $50?");
 ```
-HTTP:
+
+**HTTP**
+
 ```
 POST /api/chat/products
 { "question": "Show the newest products" }
 ```
-Response includes `answer` + lightweight `sources` array.
+
+The response includes the chatbot answer along with a lightweight `sources` array.
 
 ---
-## Contact
-Questions, ideas, improvements – reach out:
+
+## 🤝 Contact
+
+Questions, ideas, or looking to extend the sample? Drop a note:
 
 **Email:** Don.Potts@DonPotts.com
 
-Enjoy exploring and adapting this AI-enabled Blazor WASM sample! 🚀
+Enjoy exploring and adapting this AI-enabled Blazor experience! �
