@@ -14,9 +14,13 @@ using AppProduct.Data;
 using AppProduct.Models;
 using AppProduct.Services;
 using AppProduct.Shared.Models;
+using QuestPDF.Infrastructure;
 
 
 Environment.CurrentDirectory = AppContext.BaseDirectory;
+
+// Configure QuestPDF
+QuestPDF.Settings.License = LicenseType.Community;
 
 var webRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
 
@@ -42,6 +46,7 @@ modelBuilder.EntitySet<Brand>("Brand");
 modelBuilder.EntitySet<Category>("Category");
 modelBuilder.EntitySet<Product>("Product");
 modelBuilder.EntitySet<ApplicationUserDto>("User");
+modelBuilder.EntitySet<Order>("Order");
 
 builder.Services.AddControllers()
     .AddOData(options => options.EnableQueryFeatures().AddRouteComponents("odata", modelBuilder.GetEdmModel()))
@@ -177,6 +182,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 builder.Services.AddScoped<ImageService>();
 builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
+builder.Services.AddScoped<IPdfGenerationService, PdfGenerationService>();
 builder.Services.AddSingleton<INotificationService, NotificationService>();
 
 
@@ -224,6 +230,7 @@ app.UseRouting();
 app.MapRazorPages();
 
 app.UseCors("AllowLocalhost");
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGroup("/identity").MapIdentityApi<ApplicationUser>().WithTags("Identity");

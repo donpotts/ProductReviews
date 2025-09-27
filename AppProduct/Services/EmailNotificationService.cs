@@ -373,7 +373,19 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.Subtotal:F2}</td>
+                            </tr>
+                            {(order.TaxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TaxAmount:F2}</td>
+                            </tr>" : "")}
+                            {(order.ShippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.ShippingAmount:F2}</td>
+                            </tr>" : "")}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
                                 <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
                             </tr>
@@ -446,7 +458,19 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.Subtotal:F2}</td>
+                            </tr>
+                            {(order.TaxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TaxAmount:F2}</td>
+                            </tr>" : "")}
+                            {(order.ShippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.ShippingAmount:F2}</td>
+                            </tr>" : "")}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
                                 <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
                             </tr>
@@ -759,8 +783,19 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateCheckoutCancellationEmail(List<CartProduct> cart, string customerEmail)
     {
-        var itemsHtml = cart?.Any() == true 
-            ? cart.Select(item => 
+        // Separate products from tax/shipping items
+        var products = cart?.Where(item => 
+            !item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true && 
+            !item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+        
+        var taxItems = cart?.Where(item => 
+            item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+        
+        var shippingItems = cart?.Where(item => 
+            item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+
+        var itemsHtml = products.Any() 
+            ? products.Select(item => 
                 $@"<tr>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
@@ -769,6 +804,9 @@ public class EmailNotificationService : IEmailNotificationService
                 </tr>").Aggregate((a, b) => a + b)
             : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
 
+        var subtotal = products.Sum(item => (item.Price ?? 0) * item.Quantity);
+        var taxAmount = taxItems.Sum(item => (item.Price ?? 0) * item.Quantity);
+        var shippingAmount = shippingItems.Sum(item => (item.Price ?? 0) * item.Quantity);
         var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
 
         return $@"<!DOCTYPE html>
@@ -799,7 +837,19 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : "")}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : "")}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
                                 <td style='padding: 8px; text-align: right;'>${total:F2}</td>
                             </tr>
@@ -828,8 +878,19 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateCheckoutCancellationNotificationEmail(List<CartProduct> cart, string customerEmail)
     {
-        var itemsHtml = cart?.Any() == true 
-            ? cart.Select(item => 
+        // Separate products from tax/shipping items
+        var products = cart?.Where(item => 
+            !item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true && 
+            !item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+        
+        var taxItems = cart?.Where(item => 
+            item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+        
+        var shippingItems = cart?.Where(item => 
+            item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
+
+        var itemsHtml = products.Any() 
+            ? products.Select(item => 
                 $@"<tr>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
@@ -838,6 +899,9 @@ public class EmailNotificationService : IEmailNotificationService
                 </tr>").Aggregate((a, b) => a + b)
             : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
 
+        var subtotal = products.Sum(item => (item.Price ?? 0) * item.Quantity);
+        var taxAmount = taxItems.Sum(item => (item.Price ?? 0) * item.Quantity);
+        var shippingAmount = shippingItems.Sum(item => (item.Price ?? 0) * item.Quantity);
         var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
 
         return $@"<!DOCTYPE html>
@@ -872,7 +936,19 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : "")}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : "")}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
                                 <td style='padding: 8px; text-align: right;'>${total:F2}</td>
                             </tr>

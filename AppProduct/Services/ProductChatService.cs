@@ -155,6 +155,30 @@ public class ProductChatService(
         return patterns.Any(p => q.Contains(p));
     }
 
+    // Detect best-selling / most popular product request
+    private static bool IsBestSellingRequest(string question)
+    {
+        if (string.IsNullOrWhiteSpace(question)) return false;
+        var q = question.ToLowerInvariant();
+        string[] patterns =
+        [
+            "best selling",
+            "best-selling", 
+            "most popular",
+            "top selling",
+            "most sold",
+            "bestseller",
+            "best seller",
+            "most ordered",
+            "top rated",
+            "most bought",
+            "popular products",
+            "trending products",
+            "top products"
+        ];
+        return patterns.Any(p => q.Contains(p));
+    }
+
     public async Task<(string answer, IEnumerable<Product> sources)> AskAsync(string question, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -165,6 +189,7 @@ public class ProductChatService(
         }
 
         bool lowestRequest = IsLowestPriceRequest(question);
+        bool bestSellingRequest = IsBestSellingRequest(question);
 
         float[] qEmbedding = [];
         bool retrievalPossible = _embeddingAvailable && _productEmbeddings.Any();
@@ -250,11 +275,93 @@ public class ProductChatService(
             }
         }
 
+        List<Product> bestSellingProducts = [];
+        if (bestSellingRequest)
+        {
+            try
+            {
+                // Get best-selling products based on order quantities
+                bestSellingProducts = await db.OrderItem
+                    .Include(oi => oi.Product)
+                        .ThenInclude(p => p!.Brand)
+                    .Include(oi => oi.Product)
+                        .ThenInclude(p => p!.Category)
+                    .Include(oi => oi.Product)
+                        .ThenInclude(p => p!.Feature)
+                    .Include(oi => oi.Product)
+                        .ThenInclude(p => p!.Tag)
+                    .Where(oi => oi.Product != null)
+                    .GroupBy(oi => oi.Product!.Id)
+                    .Select(g => new { 
+                        ProductId = g.Key, 
+                        TotalQuantity = g.Sum(oi => oi.Quantity),
+                        Product = g.First().Product
+                    })
+                    .OrderByDescending(x => x.TotalQuantity)
+                    .Take(5)
+                    .Select(x => x.Product!)
+                    .ToListAsync(ct);
+
+                // If no order data, fall back to highest rated products
+                if (!bestSellingProducts.Any())
+                {
+                    var topRatedProductIds = await db.ProductReview
+                        .Where(pr => pr.ProductId.HasValue && pr.Rating.HasValue)
+                        .GroupBy(pr => pr.ProductId!.Value)
+                        .Select(g => new {
+                            ProductId = g.Key,
+                            AvgRating = g.Average(pr => pr.Rating!.Value),
+                            ReviewCount = g.Count()
+                        })
+                        .Where(x => x.ReviewCount >= 2) // At least 2 reviews
+                        .OrderByDescending(x => x.AvgRating)
+                        .ThenByDescending(x => x.ReviewCount)
+                        .Take(5)
+                        .Select(x => x.ProductId)
+                        .ToListAsync(ct);
+
+                    if (topRatedProductIds.Any())
+                    {
+                        bestSellingProducts = await db.Product
+                            .Include(p => p.Brand)
+                            .Include(p => p.Category)
+                            .Include(p => p.Feature)
+                            .Include(p => p.Tag)
+                            .Where(p => p.Id.HasValue && topRatedProductIds.Contains(p.Id.Value))
+                            .ToListAsync(ct);
+                    }
+                }
+
+                // Merge with existing products
+                foreach (var product in bestSellingProducts)
+                {
+                    if (!products.Any(p => p.Id == product.Id))
+                    {
+                        products.Add(product);
+                    }
+                }
+
+                // If no products yet, use best-selling as primary
+                if (!products.Any() && bestSellingProducts.Any())
+                {
+                    products = bestSellingProducts;
+                }
+            }
+            catch
+            {
+                // ignore retrieval issues
+            }
+        }
+
         var contextBlock = products.Any() ? string.Join("\n\n---\n\n", products.Select(p => BuildProductText(p))) : "(no product context available)";
         var systemPrompt = "You are a strict product knowledge assistant. Answer ONLY using the provided product context. If the question is outside product data, reply: 'I can only answer questions about the products in the catalog.' Provide concise factual answers.";
         if (lowestRequest && lowestProduct != null)
         {
             systemPrompt += " If the user asks for the lowest priced product, respond ONLY with that single product's name, Id and price (and optionally a brief spec) drawn from context.";
+        }
+        if (bestSellingRequest && bestSellingProducts.Any())
+        {
+            systemPrompt += " If the user asks for best-selling or most popular products, list the products with their names, Ids, and prices. If based on order data, mention sales performance; if based on ratings, mention customer ratings. Be concise and factual.";
         }
         var prompt = $"<system>\n{systemPrompt}\n</system>\n<context>\n{contextBlock}\n</context>\n<user_question>\n{question}\n</user_question>\n<instructions>Limit answer to product facts. Do not speculate. Cite product Ids mentioned.</instructions>";
 
@@ -319,6 +426,42 @@ public class ProductChatService(
             {
                 var priceStr = lowestProduct.Price?.ToString("0.00", CultureInfo.InvariantCulture) ?? "unknown";
                 answer = $"Lowest priced product: {name} (Id {idStr}) at price {priceStr}.";
+            }
+        }
+
+        // Guarantee best-selling products shown if requested
+        if (bestSellingRequest && bestSellingProducts.Any())
+        {
+            bool hasOrderData = false;
+            try
+            {
+                hasOrderData = await db.OrderItem.AnyAsync(ct);
+            }
+            catch
+            {
+                // ignore check errors
+            }
+
+            var productNames = bestSellingProducts.Select(p => p.Name ?? "").ToList();
+            bool anyMentioned = productNames.Any(name => !string.IsNullOrEmpty(name) && answer.Contains(name, StringComparison.OrdinalIgnoreCase));
+            
+            if (!anyMentioned)
+            {
+                var productList = bestSellingProducts.Take(3).Select(p =>
+                {
+                    var idStr = p.Id?.ToString(CultureInfo.InvariantCulture) ?? "";
+                    var name = p.Name ?? "Unknown";
+                    var priceStr = p.Price?.ToString("0.00", CultureInfo.InvariantCulture) ?? "Price not available";
+                    return $"{name} (Id {idStr}) - ${priceStr}";
+                });
+
+                var dataSource = hasOrderData ? "based on sales data" : "based on customer ratings";
+                answer = $"Our best-selling products ({dataSource}):\n\n" + string.Join("\n", productList);
+                
+                if (bestSellingProducts.Count > 3)
+                {
+                    answer += $"\n\n...and {bestSellingProducts.Count - 3} more top-performing products.";
+                }
             }
         }
 

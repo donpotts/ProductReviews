@@ -28,7 +28,7 @@ public class AppService(
             throw new Exception(message);
         }
 
-        response.EnsureSuccessStatusCode();
+        // Don't call EnsureSuccessStatusCode() since we handle status codes manually
     }
 
     public class ODataResult<T>
@@ -91,6 +91,11 @@ public class AppService(
         var response = await httpClient.SendAsync(request);
 
         await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Authentication required");
+        }
 
         return await response.Content.ReadFromJsonAsync<ODataResult<T>>();
     }
@@ -1082,6 +1087,8 @@ public class AppService(
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (response.StatusCode == HttpStatusCode.Unauthorized) 
+            throw new UnauthorizedAccessException("Authentication required");
         await HandleResponseErrorsAsync(response);
         return await response.Content.ReadFromJsonAsync<Order>();
     }
@@ -1252,6 +1259,20 @@ public class AppService(
 
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task<byte[]> DownloadOrderPdfAsync(long orderId)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/order/{orderId}/pdf");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadAsByteArrayAsync();
     }
 
 }

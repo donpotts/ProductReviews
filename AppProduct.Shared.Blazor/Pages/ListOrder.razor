@@ -2,6 +2,7 @@
 @using AppProduct.Shared.Models
 @inject AppService AppService
 @inject ISnackbar Snackbar
+@attribute [Authorize]
 
 <PageTitle>My Orders</PageTitle>
 
@@ -79,7 +80,7 @@
                                         View Details
                                     </MudButton>
                                     
-                                    @if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Confirmed)
+                                    @if (order.Status == OrderStatus.Pending)
                                     {
                                         <MudButton Variant="Variant.Outlined" 
                                                   Color="Color.Error" 

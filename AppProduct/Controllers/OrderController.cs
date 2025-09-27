@@ -14,7 +14,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class OrderController(ApplicationDbContext ctx, IEmailNotificationService emailService) : ControllerBase
+public class OrderController(ApplicationDbContext ctx, IEmailNotificationService emailService, IPdfGenerationService pdfService) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -201,6 +201,38 @@ public class OrderController(ApplicationDbContext ctx, IEmailNotificationService
         catch (Exception ex)
         {
             return BadRequest($"Failed to send email: {ex.Message}");
+        }
+    }
+
+    [HttpGet("{key}/pdf")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> DownloadOrderPdfAsync(long key)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+            return Unauthorized();
+
+        var isAdmin = User.IsInRole("Administrator");
+        var order = await ctx.Order
+            .Include(x => x.Items)
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(x => x.Id == key && (isAdmin || x.UserId == userId));
+
+        if (order == null)
+            return NotFound();
+
+        try
+        {
+            var pdfBytes = pdfService.GenerateOrderPdf(order);
+            var fileName = $"Order-{order.OrderNumber}.pdf";
+            
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest($"Failed to generate PDF: {ex.Message}");
         }
     }
 

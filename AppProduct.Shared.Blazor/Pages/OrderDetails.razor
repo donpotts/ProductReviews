@@ -4,8 +4,10 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@attribute [Authorize]
 
 <PageTitle>Order Details</PageTitle>
+
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
@@ -16,7 +18,8 @@
         <MudButton Variant="Variant.Outlined" 
                   Color="Color.Primary" 
                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                  Href="/orders">
+                  Href="/orders"
+                  Class="no-print">
             Back to Orders
         </MudButton>
     </MudStack>
@@ -195,10 +198,10 @@
                     </MudPaper>
 
                     <!-- Actions -->
-                    <MudPaper Class="pa-4" Elevation="2">
+                    <MudPaper Class="pa-4 actions-section no-print" Elevation="2">
                         <MudText Typo="Typo.h6" Class="mb-3">Actions</MudText>
                         <MudStack Spacing="2">
-                            @if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Confirmed || order.Status == OrderStatus.Processing)
+                            @if (order.Status == OrderStatus.Pending)
                             {
                                 <MudButton Variant="Variant.Outlined" 
                                           Color="Color.Error" 
@@ -212,16 +215,25 @@
                             <MudButton Variant="Variant.Outlined" 
                                       Color="Color.Primary" 
                                       FullWidth="true"
-                                      StartIcon="@Icons.Material.Filled.Print"
-                                      OnClick="PrintOrder">
-                                Print Order
+                                      StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                      OnClick="DownloadPdf"
+                                      Disabled="isDownloading">
+                                @if (isDownloading)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                    <span class="ml-2">Generating PDF...</span>
+                                }
+                                else
+                                {
+                                    <span>Download PDF</span>
+                                }
                             </MudButton>
                             
                             <MudButton Variant="Variant.Outlined" 
                                       Color="Color.Secondary" 
                                       FullWidth="true"
                                       StartIcon="@Icons.Material.Filled.Help"
-                                      Href="/support">
+                                      OnClick="ContactSupport">
                                 Contact Support
                             </MudButton>
                         </MudStack>
@@ -237,6 +249,7 @@
 
     private Order? order;
     private bool isLoading = true;
+    private bool isDownloading = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -299,10 +312,78 @@
         }
     }
 
-    private void PrintOrder()
+    private async Task DownloadPdf()
     {
-        // Implementation would depend on printing requirements
-        Snackbar.Add("Print functionality would be implemented here", Severity.Info);
+        try
+        {
+            if (order?.Id == null) return;
+
+            isDownloading = true;
+            StateHasChanged();
+
+            var pdfBytes = await AppService.DownloadOrderPdfAsync(order.Id.Value);
+            var fileName = $"Order-{order.OrderNumber}.pdf";
+
+            // Create download link and trigger download
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", Convert.ToBase64String(pdfBytes));
+            
+            Snackbar.Add("PDF downloaded successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating PDF: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isDownloading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ContactSupport()
+    {
+        try
+        {
+            if (order == null) return;
+
+            var supportEmail = "support@productreviews.com"; // You can make this configurable
+            var subject = $"Support Request - Order {order.OrderNumber}";
+            
+            var orderItems = order.Items?.Select(item => $"- {item.Product?.Name} (Qty: {item.Quantity}, Price: {item.UnitPrice:C})").ToList() ?? new List<string>();
+            var orderItemsText = string.Join("\n", orderItems);
+            
+            var body = $@"Hello Support Team,
+
+I need assistance with my order:
+
+Order Number: {order.OrderNumber}
+Order Date: {order.OrderDate:MMM dd, yyyy}
+Order Status: {order.Status}
+Payment Method: {GetPaymentMethodText()}
+Total Amount: {order.TotalAmount:C}
+
+Please describe your issue or question below:
+
+[Please describe your issue here]
+
+Thank you,
+[Your Name]
+
+---
+Order Details:
+{orderItemsText}
+
+Shipping Address: {order.ShippingAddress}
+";
+
+            var mailtoUrl = $"mailto:{supportEmail}?subject={Uri.EscapeDataString(subject)}&body={Uri.EscapeDataString(body)}";
+            
+            await JSRuntime.InvokeVoidAsync("open", mailtoUrl, "_self");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error opening email client: {ex.Message}", Severity.Error);
+        }
     }
 
     private string GetPaymentMethodText()

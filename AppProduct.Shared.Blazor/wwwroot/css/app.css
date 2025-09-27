@@ -65,3 +65,27 @@ h1:focus {
         z-index: 1;
     }
 }
+
+/* Print styles for Order Details page */
+@media print {
+    .actions-section,
+    .no-print {
+        display: none !important;
+    }
+    
+    .mud-button-root {
+        display: none !important;
+    }
+    
+    .mud-container {
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Ensure content is printer friendly */
+    body {
+        background: white !important;
+        color: black !important;
+    }
+}

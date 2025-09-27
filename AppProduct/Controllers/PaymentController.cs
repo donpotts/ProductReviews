@@ -73,7 +73,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                 }).ToList(),
                 Mode = "payment",
                 SuccessUrl = $"{domain}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
-                CancelUrl = $"{domain}/checkout/cancel",
+                CancelUrl = $"{domain}/checkout/cancel?session_id={{CHECKOUT_SESSION_ID}}",
             };
 
             // Add tax as a separate line item

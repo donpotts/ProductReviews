@@ -47,6 +47,10 @@
             var cartItems = CartService.CartItems?.ToList() ?? new List<CartProduct>();
             
             Console.WriteLine($"CheckoutCancel - Cart items: {cartItems.Count}, SessionId: {SessionId}");
+            foreach (var item in cartItems)
+            {
+                Console.WriteLine($"  Cart item: {item.Name}, Qty: {item.Quantity}, Price: ${item.Price}");
+            }
             
             // Only send email if we have cart items or session info
             if (cartItems.Any() || !string.IsNullOrEmpty(SessionId))
@@ -68,7 +72,9 @@
         catch (Exception ex)
         {
             // Don't show error to user for email notification failure
-            Console.WriteLine($"Failed to send cancellation notification: {ex}");
+            Console.WriteLine($"Failed to send cancellation notification: {ex.Message}");
+            Console.WriteLine($"Exception details: {ex}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
 }
