@@ -17,7 +17,7 @@
                 <!-- Product Selection -->
                     <MudAutocomplete T="Product" Value="selectedProduct" ValueChanged="@OnProductSelected"
                                     SearchFunc="@SearchProducts"
-                                    ToStringFunc="@(product => product?.Name ?? string.Empty)"
+                                    ToStringFunc="@(product => product?.GetDisplayName() ?? string.Empty)"
                                     Label="Select Product" Required="true" 
                                     Placeholder="Type to search for a product..."
                                     Clearable="true" Dense="true"
@@ -28,7 +28,7 @@
                                     DebounceInterval="300">
                         <ItemTemplate Context="product">
                             <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                                <MudText>@product.Name</MudText>
+                                <MudText>@product.GetDisplayName()</MudText>
                                 @if (!string.IsNullOrEmpty(product.Description))
                                 {
                                     <MudText Typo="Typo.caption" Color="Color.Tertiary">@(product.Description.Length > 50 ? product.Description.Substring(0, 50) + "..." : product.Description)</MudText>
@@ -160,9 +160,10 @@
         try
         {
             // For better performance with large datasets, use OData filtering
+            var sanitizedValue = value.ToLower().Replace("'", "''");
             var result = await AppService.ListProductODataAsync(
-                filter: $"contains(tolower(Name), '{value.ToLower().Replace("'", "''")}') or contains(tolower(Description), '{value.ToLower().Replace("'", "''")}')",
-                orderby: "Name",
+                filter: $"contains(tolower(Model), '{sanitizedValue}') or contains(tolower(Name), '{sanitizedValue}') or contains(tolower(Description), '{sanitizedValue}')",
+                orderby: "Model,Name",
                 top: 20
             );
 
@@ -203,20 +204,21 @@
             if (ratingValue.HasValue)
             {
                 // Generate title based on rating
+                var displayName = selectedProduct.GetDisplayName();
                 var title = ratingValue.Value switch
                 {
-                    >= 4.5m => $"Excellent {selectedProduct.Name}!",
-                    >= 4.0m => $"Great {selectedProduct.Name}",
-                    >= 3.0m => $"Good {selectedProduct.Name}",
-                    >= 2.0m => $"Average {selectedProduct.Name}",
-                    _ => $"Disappointing {selectedProduct.Name}"
+                    >= 4.5m => $"Excellent {displayName}!",
+                    >= 4.0m => $"Great {displayName}",
+                    >= 3.0m => $"Good {displayName}",
+                    >= 2.0m => $"Average {displayName}",
+                    _ => $"Disappointing {displayName}"
                 };
                 record.Title = title;
             }
             else
             {
                 // Default title without rating
-                record.Title = $"My Review of {selectedProduct.Name}";
+                record.Title = $"My Review of {selectedProduct.GetDisplayName()}";
             }
         }
     }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using System.Net;
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using System.Web;
@@ -1065,11 +1066,11 @@ public class AppService(
         
         var queryString = HttpUtility.ParseQueryString(string.Empty);
         if (!string.IsNullOrEmpty(query)) queryString.Add("query", query);
-        if (categoryId.HasValue) queryString.Add("categoryId", categoryId.ToString());
-        if (brandId.HasValue) queryString.Add("brandId", brandId.ToString());
-        if (minPrice.HasValue) queryString.Add("minPrice", minPrice.ToString());
-        if (maxPrice.HasValue) queryString.Add("maxPrice", maxPrice.ToString());
-        if (inStock.HasValue) queryString.Add("inStock", inStock.ToString());
+    if (categoryId.HasValue) queryString.Add("categoryId", categoryId.Value.ToString(CultureInfo.InvariantCulture));
+    if (brandId.HasValue) queryString.Add("brandId", brandId.Value.ToString(CultureInfo.InvariantCulture));
+    if (minPrice.HasValue) queryString.Add("minPrice", minPrice.Value.ToString(CultureInfo.InvariantCulture));
+    if (maxPrice.HasValue) queryString.Add("maxPrice", maxPrice.Value.ToString(CultureInfo.InvariantCulture));
+    if (inStock.HasValue) queryString.Add("inStock", inStock.Value.ToString());
         
         var uri = $"/api/product/search?{queryString}";
         HttpRequestMessage request = new(HttpMethod.Get, uri);

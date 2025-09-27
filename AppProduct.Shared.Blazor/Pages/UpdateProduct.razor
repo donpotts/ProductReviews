@@ -27,6 +27,7 @@ else
             </TitleContent>
             <DialogContent>
                 <MudNumericField @bind-Value="record.Id" For="@(() => record.Id)" Label="Id" ReadOnly="true" />
+                <MudTextField @bind-Value="record.Model" For="@(() => record.Model)" Label="Model" />
                 <MudTextField @bind-Value="record.Name" For="@(() => record.Name)" Label="Name" />
                 <MudTextField @bind-Value="record.Description" For="@(() => record.Description)" Label="Description" />
                 <MudTextField @bind-Value="record.DetailedSpecs" For="@(() => record.DetailedSpecs)" Label="DetailedSpecs" />

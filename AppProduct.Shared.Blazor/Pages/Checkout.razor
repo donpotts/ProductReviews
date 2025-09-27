@@ -173,7 +173,7 @@
                         @foreach (var item in cart.Items)
                         {
                             <MudStack Row="true" Justify="Justify.SpaceBetween">
-                                <MudText Typo="Typo.body2">@item.Product?.Name (×@item.Quantity)</MudText>
+                                <MudText Typo="Typo.body2">@item.Product.GetDisplayName() (×@item.Quantity)</MudText>
                                 <MudText Typo="Typo.body2">@(((item.UnitPrice ?? 0) * item.Quantity).ToString("C"))</MudText>
                             </MudStack>
                         }
@@ -394,8 +394,8 @@
                         // Don't fail the order if email fails
                     }
                     
-                    // Redirect to success page instead of non-existent confirmation page
-                    Navigation.NavigateTo("/checkout/success");
+                    // Redirect to success page with the new order ID so details can be displayed
+                    Navigation.NavigateTo($"/checkout/success?order_id={order.Id.Value}");
                 }
                 else
                 {

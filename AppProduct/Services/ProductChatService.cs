@@ -421,8 +421,9 @@ public class ProductChatService(
         if (lowestRequest && lowestProduct != null)
         {
             var idStr = lowestProduct.Id?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-            var name = lowestProduct.Name ?? string.Empty;
-            if (!answer.Contains(idStr, StringComparison.OrdinalIgnoreCase) && !answer.Contains(name, StringComparison.OrdinalIgnoreCase))
+            var displayName = lowestProduct.GetDisplayName();
+            var name = string.IsNullOrWhiteSpace(displayName) ? lowestProduct.Name ?? string.Empty : displayName;
+            if (!answer.Contains(idStr, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(name) && !answer.Contains(name, StringComparison.OrdinalIgnoreCase))
             {
                 var priceStr = lowestProduct.Price?.ToString("0.00", CultureInfo.InvariantCulture) ?? "unknown";
                 answer = $"Lowest priced product: {name} (Id {idStr}) at price {priceStr}.";
@@ -442,7 +443,13 @@ public class ProductChatService(
                 // ignore check errors
             }
 
-            var productNames = bestSellingProducts.Select(p => p.Name ?? "").ToList();
+            var productNames = bestSellingProducts
+                .Select(p =>
+                {
+                    var displayName = p.GetDisplayName();
+                    return string.IsNullOrWhiteSpace(displayName) ? p.Name ?? string.Empty : displayName;
+                })
+                .ToList();
             bool anyMentioned = productNames.Any(name => !string.IsNullOrEmpty(name) && answer.Contains(name, StringComparison.OrdinalIgnoreCase));
             
             if (!anyMentioned)
@@ -450,7 +457,8 @@ public class ProductChatService(
                 var productList = bestSellingProducts.Take(3).Select(p =>
                 {
                     var idStr = p.Id?.ToString(CultureInfo.InvariantCulture) ?? "";
-                    var name = p.Name ?? "Unknown";
+                    var displayName = p.GetDisplayName();
+                    var name = string.IsNullOrWhiteSpace(displayName) ? p.Name ?? "Unknown" : displayName;
                     var priceStr = p.Price?.ToString("0.00", CultureInfo.InvariantCulture) ?? "Price not available";
                     return $"{name} (Id {idStr}) - ${priceStr}";
                 });

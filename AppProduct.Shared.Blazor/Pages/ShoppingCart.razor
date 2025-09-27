@@ -46,7 +46,7 @@
                                     <MudItem xs="12" sm="2">
                                         @if (!string.IsNullOrEmpty(item.Product?.ImageUrl))
                                         {
-                                            <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.Name" 
+                                            <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.GetDisplayName()" 
                                                      Style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;" />
                                         }
                                         else
@@ -58,7 +58,7 @@
                                         }
                                     </MudItem>
                                     <MudItem xs="12" sm="4">
-                                        <MudText Typo="Typo.subtitle1">@item.Product?.Name</MudText>
+                                        <MudText Typo="Typo.subtitle1">@item.Product.GetDisplayName()</MudText>
                                         <MudText Typo="Typo.body2" Color="Color.Default">
                                             @item.Product?.Description?.Substring(0, Math.Min(item.Product.Description.Length, 100))@(item.Product?.Description?.Length > 100 ? "..." : "")
                                         </MudText>

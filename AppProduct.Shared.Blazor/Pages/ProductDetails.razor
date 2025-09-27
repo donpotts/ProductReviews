@@ -1,0 +1,279 @@
+@page "/product/view/{Id:long}"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.Collections.Generic
+@using System.Linq
+@using MudBlazor
+@inject AppService AppService
+@inject CartService CartService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Product Details</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-8">
+    <MudBreadcrumbs Items="breadcrumbItems" Class="mb-4" />
+
+    @if (isLoading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (!loadSucceeded)
+    {
+        <MudPaper Class="pa-6" Elevation="2">
+            <MudStack Spacing="2" AlignItems="AlignItems.Center">
+                <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Color="Color.Error" Size="Size.Large" />
+                <MudText Typo="Typo.h6">We couldn't find that product.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="NavigateBack">
+                    Return to catalog
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    else if (product == null)
+    {
+        <MudSkeleton Height="300px" />
+    }
+    else
+    {
+        <MudPaper Class="pa-6" Elevation="2">
+            <MudGrid Spacing="4">
+                <MudItem xs="12" md="5">
+                    <MudImage Src="@(product.ImageUrl ?? "/images/placeholder-product.png")"
+                              Alt="@product.GetDisplayName()"
+                              Style="width: 100%; max-width: 1024px; max-height: 1024px; height: auto; border-radius: 12px; object-fit: contain; background-color: var(--mud-palette-grey-lighten2, #f5f5f5); margin-left: auto; margin-right: auto;" />
+                    <MudStack Spacing="1" Class="mt-3">
+                        @if (brandNames.Any())
+                        {
+                            <MudChipSet T="string">
+                                @foreach (var name in brandNames)
+                                {
+                                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined">
+                                        @name
+                                    </MudChip>
+                                }
+                            </MudChipSet>
+                        }
+
+                        @if (categoryNames.Any())
+                        {
+                            <MudChipSet T="string" Class="mt-1">
+                                @foreach (var name in categoryNames)
+                                {
+                                    <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined">
+                                        @name
+                                    </MudChip>
+                                }
+                            </MudChipSet>
+                        }
+                    </MudStack>
+                </MudItem>
+
+                <MudItem xs="12" md="7">
+                    <MudStack Spacing="3">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.h3">@product.GetDisplayName()</MudText>
+                            @if (!string.IsNullOrWhiteSpace(product.SKU))
+                            {
+                                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                    SKU: @product.SKU
+                                </MudText>
+                            }
+                            @if (product.ReleaseDate.HasValue)
+                            {
+                                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                    Released @product.ReleaseDate.Value.ToString("MMMM dd, yyyy")
+                                </MudText>
+                            }
+                        </MudStack>
+
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.h4" Color="Color.Primary">@product.Price?.ToString("C")</MudText>
+                            @if (product.InStock)
+                            {
+                                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled">
+                                    In stock
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Variant="Variant.Filled">
+                                    Currently unavailable
+                                </MudChip>
+                            }
+                        </MudStack>
+
+                        <MudText Typo="Typo.body1">@product.Description</MudText>
+
+                        @if (!string.IsNullOrWhiteSpace(product.DetailedSpecs))
+                        {
+                            <MudPaper Class="pa-4" Elevation="0" Outlined="true">
+                                <MudText Typo="Typo.h6" Class="mb-2">Detailed specifications</MudText>
+                                <MudText Typo="Typo.body2">@product.DetailedSpecs</MudText>
+                            </MudPaper>
+                        }
+
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!product.InStock)"
+                                       StartIcon="@Icons.Material.Filled.AddShoppingCart" OnClick="AddToCart">
+                                Add to Cart
+                            </MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack"
+                                       OnClick="NavigateBack">
+                                Back to Catalog
+                            </MudButton>
+                        </MudStack>
+
+                        @if (product.ProductReview?.Any() == true)
+                        {
+                            <MudDivider Class="mt-4 mb-2" />
+                            <MudText Typo="Typo.h5">Customer Reviews</MudText>
+                            <ProductRatingDisplay Reviews="product.ProductReview" ShowBreakdown="true" />
+                        }
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    private Product? product;
+    private bool isLoading = true;
+    private bool loadSucceeded = true;
+    private IReadOnlyList<BreadcrumbItem> breadcrumbItems = Array.Empty<BreadcrumbItem>();
+    private IReadOnlyList<string> brandNames = Array.Empty<string>();
+    private IReadOnlyList<string> categoryNames = Array.Empty<string>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadProductAsync();
+    }
+
+    private async Task LoadProductAsync()
+    {
+        isLoading = true;
+        loadSucceeded = true;
+        brandNames = Array.Empty<string>();
+        categoryNames = Array.Empty<string>();
+        StateHasChanged();
+
+        try
+        {
+            product = await AppService.GetProductByIdAsync(Id);
+            loadSucceeded = product != null;
+            if (loadSucceeded && product != null)
+            {
+                brandNames = await ResolveBrandNamesAsync(product);
+                categoryNames = await ResolveCategoryNamesAsync(product);
+                breadcrumbItems =
+                [
+                    new BreadcrumbItem("Catalog", href: "/catalog", icon: Icons.Material.Filled.Storefront),
+                    new BreadcrumbItem(product.GetDisplayName(), href: $"/product/view/{Id}", disabled: true)
+                ];
+            }
+            else
+            {
+                breadcrumbItems =
+                [
+                    new BreadcrumbItem("Catalog", href: "/catalog", icon: Icons.Material.Filled.Storefront)
+                ];
+            }
+        }
+        catch (Exception ex)
+        {
+            loadSucceeded = false;
+            Snackbar.Add($"Error loading product: {ex.Message}", Severity.Error);
+            breadcrumbItems =
+            [
+                new BreadcrumbItem("Catalog", href: "/catalog", icon: Icons.Material.Filled.Storefront)
+            ];
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> ResolveBrandNamesAsync(Product currentProduct)
+    {
+        var names = currentProduct.Brand?
+            .Select(b => b?.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+
+        if (names.Count == 0 && currentProduct.BrandId.HasValue)
+        {
+            try
+            {
+                var brand = await AppService.GetBrandByIdAsync(currentProduct.BrandId.Value);
+                if (!string.IsNullOrWhiteSpace(brand?.Name))
+                {
+                    names.Add(brand.Name.Trim());
+                }
+            }
+            catch
+            {
+                // Best effort only; silently ignore failures and fall back to empty list
+            }
+        }
+
+        return names.Count > 0 ? names : Array.Empty<string>();
+    }
+
+    private async Task<IReadOnlyList<string>> ResolveCategoryNamesAsync(Product currentProduct)
+    {
+        var names = currentProduct.Category?
+            .Select(c => c?.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+
+        if (names.Count == 0 && currentProduct.CategoryId.HasValue)
+        {
+            try
+            {
+                var category = await AppService.GetCategoryByIdAsync(currentProduct.CategoryId.Value);
+                if (!string.IsNullOrWhiteSpace(category?.Name))
+                {
+                    names.Add(category.Name.Trim());
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to empty set when category lookup fails
+            }
+        }
+
+        return names.Count > 0 ? names : Array.Empty<string>();
+    }
+
+    private async Task AddToCart()
+    {
+        if (product == null)
+        {
+            Snackbar.Add("Product not available", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            await CartService.AddToCartAsync(product);
+            Snackbar.Add($"Added {product.GetDisplayName()} to your cart", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unable to add to cart: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo("/catalog");
+    }
+}

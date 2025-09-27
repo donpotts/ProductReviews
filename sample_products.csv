@@ -1,6 +1,6 @@
-Name,Description,DetailedSpecs,Price,ImageUrl,InStock,ReleaseDate,Notes,UserId
-iPhone 15 Pro,Latest Apple smartphone with titanium design,A17 Pro chip 6.1-inch display 128GB storage,999.00,https://example.com/images/iphone15pro.jpg,true,2023-09-22,Premium flagship phone,1
-MacBook Pro 14,Powerful laptop for professionals,M3 chip 14-inch Liquid Retina XDR display 16GB RAM 512GB SSD,1999.00,https://example.com/images/macbookpro14.jpg,true,2023-11-07,Professional laptop with M3 chip,1
-AirPods Pro 2,Premium wireless earbuds with noise cancellation,Active Noise Cancellation Spatial Audio H2 chip,249.00,https://example.com/images/airpodspro2.jpg,true,2022-09-23,Best-in-class wireless earbuds,1
-iPad Air 5,Versatile tablet for work and creativity,M1 chip 10.9-inch Liquid Retina display 64GB storage,599.00,https://example.com/images/ipadair5.jpg,true,2022-03-18,Perfect balance of performance and portability,1
-Apple Watch Series 9,Advanced health and fitness tracking,S9 SiP 41mm Retina display GPS + Cellular,399.00,https://example.com/images/watchseries9.jpg,true,2023-09-22,Most advanced Apple Watch yet,1
+Name,Model,Description,DetailedSpecs,Price,ImageUrl,InStock,ReleaseDate,Notes,UserId
+iPhone 15 Pro,APL-IP15P,Latest Apple smartphone with titanium design,A17 Pro chip 6.1-inch display 128GB storage,999.00,https://example.com/images/iphone15pro.jpg,true,2023-09-22,Premium flagship phone,1
+MacBook Pro 14,APL-MBP14,Powerful laptop for professionals,M3 chip 14-inch Liquid Retina XDR display 16GB RAM 512GB SSD,1999.00,https://example.com/images/macbookpro14.jpg,true,2023-11-07,Professional laptop with M3 chip,1
+AirPods Pro 2,APL-APP2,Premium wireless earbuds with noise cancellation,Active Noise Cancellation Spatial Audio H2 chip,249.00,https://example.com/images/airpodspro2.jpg,true,2022-09-23,Best-in-class wireless earbuds,1
+iPad Air 5,APL-IPAD5,Versatile tablet for work and creativity,M1 chip 10.9-inch Liquid Retina display 64GB storage,599.00,https://example.com/images/ipadair5.jpg,true,2022-03-18,Perfect balance of performance and portability,1
+Apple Watch Series 9,APL-WAT9,Advanced health and fitness tracking,S9 SiP 41mm Retina display GPS + Cellular,399.00,https://example.com/images/watchseries9.jpg,true,2023-09-22,Most advanced Apple Watch yet,1

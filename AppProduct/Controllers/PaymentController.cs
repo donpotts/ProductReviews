@@ -74,6 +74,23 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
 
             cartSubtotal += unitPrice * quantity;
 
+            var originalName = cartItem.Product?.Name?.Trim();
+            var productModel = cartItem.Product?.Model?.Trim();
+            var productDisplayName = cartItem.Product?.GetDisplayName() ?? originalName ?? "Product";
+            var productMetadata = new Dictionary<string, string>();
+            if (!string.IsNullOrWhiteSpace(originalName))
+            {
+                productMetadata["product_name"] = originalName;
+            }
+            if (!string.IsNullOrWhiteSpace(productModel))
+            {
+                productMetadata["product_model"] = productModel;
+            }
+            if (cartItem.ProductId.HasValue)
+            {
+                productMetadata["product_id"] = cartItem.ProductId.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
             productLineItems.Add(new SessionLineItemOptions
             {
                 Quantity = quantity,
@@ -83,8 +100,9 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                     Currency = "usd",
                     ProductData = new SessionLineItemPriceDataProductDataOptions
                     {
-                        Name = cartItem.Product?.Name ?? "Product",
+                        Name = productDisplayName,
                         Description = cartItem.Product?.Description ?? string.Empty,
+                        Metadata = productMetadata.Count > 0 ? productMetadata : null,
                     },
                 },
             });

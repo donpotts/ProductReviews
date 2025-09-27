@@ -35,6 +35,7 @@ public class CartService
             {
                 Id = product.Id,
                 Name = product.Name,
+                Model = product.Model,
                 Description = product.Description ?? "No description provided",
                 Price = product.Price,
                 Quantity = 1
@@ -50,6 +51,7 @@ public class CartService
         {
             Id = product.Id,
             Name = product.Name,
+            Model = product.Model,
             Description = product.Description ?? "No description provided",
             Price = product.Price,
             Quantity = 1

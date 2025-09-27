@@ -1,6 +1,6 @@
-Name,Description,Price,UserId
-Samsung Galaxy S24,Latest Android flagship phone,899.00,1
-Sony WH-1000XM5,Premium noise canceling headphones,399.99,1
-Dell XPS 13,Ultrabook laptop for professionals,1199.00,1
-Nintendo Switch OLED,Gaming console with OLED screen,349.99,1
-Microsoft Surface Pro 9,2-in-1 tablet laptop hybrid,999.00,1
+Name,Model,Description,Price,UserId
+Samsung Galaxy S24,SAM-S24,Latest Android flagship phone,899.00,1
+Sony WH-1000XM5,SON-WH5,Premium noise canceling headphones,399.99,1
+Dell XPS 13,DEL-XPS13,Ultrabook laptop for professionals,1199.00,1
+Nintendo Switch OLED,NIN-SWO,Gaming console with OLED screen,349.99,1
+Microsoft Surface Pro 9,MS-SUR9,2-in-1 tablet laptop hybrid,999.00,1

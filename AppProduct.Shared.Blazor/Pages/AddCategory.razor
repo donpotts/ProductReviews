@@ -1,6 +1,7 @@
 @inject AppService AppService
 @inject ISnackbar Snackbar
 @inject HttpClient HttpClient
+@using AppProduct.Shared.Models
 
 <EditForm Model="@record" OnValidSubmit="@OnSubmit">
     <DataAnnotationsValidator />
@@ -17,10 +18,10 @@
             <MudTextField Format="s" InputType="InputType.DateTimeLocal" @bind-Value="record.ModifiedDate" For="@(() => record.ModifiedDate)" Label="ModifiedDate" />
             <MudTextField @bind-Value="record.Notes" For="@(() => record.Notes)" Label="Notes" />
             <MudNumericField @bind-Value="record.UserId" For="@(() => record.UserId)" Label="UserId" />
-            <MudSelect T="long?" Label="Product" MultiSelection="true" @bind-SelectedValues="productValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => productArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.Name)))" AnchorOrigin="Origin.BottomCenter">
+            <MudSelect T="long?" Label="Product" MultiSelection="true" @bind-SelectedValues="productValues" MultiSelectionTextFunc="@(x => string.Join(", ", x.Select(s => productArray?.FirstOrDefault(i => i.Id?.ToString() == s)?.GetDisplayName())))" AnchorOrigin="Origin.BottomCenter">
                 @foreach (var product in productArray ?? Enumerable.Empty<Product>())
                 {
-                    <MudSelectItem T="long?" Value="@product.Id">@product.Name</MudSelectItem>
+                    <MudSelectItem T="long?" Value="@product.Id">@product.GetDisplayName()</MudSelectItem>
                 }
             </MudSelect>
 

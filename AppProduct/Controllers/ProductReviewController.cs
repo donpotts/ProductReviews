@@ -71,11 +71,17 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
                 var product = await scopedContext.Product.FindAsync(productReview.ProductId);
                 if (product != null)
                 {
+                    var productDisplayName = product.GetDisplayName();
+                    if (string.IsNullOrWhiteSpace(productDisplayName))
+                    {
+                        productDisplayName = product.Name ?? "this product";
+                    }
+
                     await emailNotificationService.SendNewReviewNotificationAsync(productReview, product);
                     
                     // Create in-app notification for admins (system-wide)
                     await notificationService.CreateNotificationAsync(
-                        $"New Review for {product.Name}",
+                        $"New Review for {productDisplayName}",
                         $"{productReview.CustomerName} left a {productReview.Rating}-star review: \"{productReview.Title}\"",
                         "Info",
                         null, // System-wide notification
@@ -125,6 +131,12 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
                     var product = await scopedContext.Product.FindAsync(productReview.ProductId);
                     if (product != null)
                     {
+                        var productDisplayName = product.GetDisplayName();
+                        if (string.IsNullOrWhiteSpace(productDisplayName))
+                        {
+                            productDisplayName = product.Name ?? "your product";
+                        }
+
                         await emailNotificationService.SendReviewResponseNotificationAsync(productReview, product);
                         
                         // Create in-app notification for the customer if they have a user account
@@ -132,7 +144,7 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
                         {
                             await notificationService.CreateNotificationAsync(
                                 $"Response to Your Review",
-                                $"We've responded to your review of {product.Name}",
+                                $"We've responded to your review of {productDisplayName}",
                                 "Success",
                                 productReview.UserId.Value,
                                 $"/products/{productReview.ProductId}#reviews"
@@ -142,7 +154,7 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
                         // Also notify admins about the response being sent
                         await notificationService.CreateNotificationAsync(
                             $"Review Response Sent",
-                            $"Response sent to {productReview.CustomerName} for their review of {product.Name}",
+                                $"Response sent to {productReview.CustomerName} for their review of {productDisplayName}",
                             "Info",
                             null, // System-wide notification
                             $"/products/{productReview.ProductId}#reviews"

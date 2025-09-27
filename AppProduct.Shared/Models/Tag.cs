@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.Serialization;
@@ -34,5 +35,5 @@ public class Tag
     public long? UserId { get; set; }
 
     [DataMember]
-    public List<Product>? Product { get; set; }
+    public List<Product> Product { get; set; } = new();
 }

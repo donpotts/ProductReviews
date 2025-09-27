@@ -112,7 +112,9 @@ public class PdfGenerationService : IPdfGenerationService
 
                     foreach (var item in order.Items ?? new List<OrderItem>())
                     {
-                        table.Cell().Element(CellStyle).Text(item.Product?.Name ?? "Unknown Product");
+                        var displayName = item.Product?.GetDisplayName();
+                        var productName = string.IsNullOrWhiteSpace(displayName) ? item.Product?.Name ?? "Unknown Product" : displayName;
+                        table.Cell().Element(CellStyle).Text(productName);
                         table.Cell().Element(CellStyle).AlignCenter().Text(item.Quantity.ToString());
                         table.Cell().Element(CellStyle).AlignRight().Text($"${item.UnitPrice:F2}");
                         table.Cell().Element(CellStyle).AlignRight().Text($"${item.UnitPrice * item.Quantity:F2}");

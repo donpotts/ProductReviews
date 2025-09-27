@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace AppProduct.Shared.Models;
 
@@ -11,6 +13,9 @@ public class Product
     [Key]
     [DataMember]
     public long? Id { get; set; }
+
+    [DataMember]
+    public string? Model { get; set; }
 
     [DataMember]
     public string? Name { get; set; }
@@ -64,17 +69,22 @@ public class Product
     public long? UserId { get; set; }
 
     [DataMember]
-    public List<Category>? Category { get; set; }
+    public List<Category> Category { get; set; } = new();
 
     [DataMember]
-    public List<Brand>? Brand { get; set; }
+    public List<Brand> Brand { get; set; } = new();
 
     [DataMember]
-    public List<Feature>? Feature { get; set; }
+    public List<Feature> Feature { get; set; } = new();
 
     [DataMember]
-    public List<Tag>? Tag { get; set; }
+    public List<Tag> Tag { get; set; } = new();
 
     [DataMember]
-    public List<ProductReview>? ProductReview { get; set; }
+    public List<ProductReview> ProductReview { get; set; } = new();
+
+    [NotMapped]
+    public string DisplayName => string.IsNullOrWhiteSpace(Model)
+        ? Name ?? string.Empty
+        : string.Join(' ', new[] { Model?.Trim(), Name?.Trim() }.Where(s => !string.IsNullOrWhiteSpace(s)));
 }

@@ -70,8 +70,14 @@ public class EmailNotificationService : IEmailNotificationService
                 return;
             }
 
-            var subject = $"New Review Received for {product.Name}";
-            var body = BuildNewReviewEmailBody(review, product);
+            var productDisplayName = product.GetDisplayName();
+            if (string.IsNullOrWhiteSpace(productDisplayName))
+            {
+                productDisplayName = product.Name ?? "your product";
+            }
+
+            var subject = $"New Review Received for {productDisplayName}";
+            var body = BuildNewReviewEmailBody(review, product, productDisplayName);
 
             var message = new Message
             {
@@ -134,8 +140,14 @@ public class EmailNotificationService : IEmailNotificationService
                 return;
             }
 
-            var subject = $"Response to Your Review of {product.Name}";
-            var body = BuildResponseEmailBody(review, product);
+            var productDisplayName = product.GetDisplayName();
+            if (string.IsNullOrWhiteSpace(productDisplayName))
+            {
+                productDisplayName = product.Name ?? "your product";
+            }
+
+            var subject = $"Response to Your Review of {productDisplayName}";
+            var body = BuildResponseEmailBody(review, product, productDisplayName);
 
             var message = new Message
             {
@@ -172,7 +184,7 @@ public class EmailNotificationService : IEmailNotificationService
         }
     }
 
-    private string BuildNewReviewEmailBody(ProductReview review, Product product)
+    private string BuildNewReviewEmailBody(ProductReview review, Product product, string productDisplayName)
     {
         return $@"
         <html>
@@ -181,7 +193,7 @@ public class EmailNotificationService : IEmailNotificationService
                 <h2 style='color: #2c5aa0;'>New Review Received</h2>
                 
                 <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #495057;'>Product: {product.Name}</h3>
+                    <h3 style='margin-top: 0; color: #495057;'>Product: {productDisplayName}</h3>
                     <p><strong>Customer:</strong> {review.CustomerName}</p>
                     <p><strong>Customer Email:</strong> <a href='mailto:{review.CustomerEmail}' style='color: #2c5aa0; text-decoration: none;'>{review.CustomerEmail}</a></p>
                     <p><strong>Rating:</strong> {review.Rating}/5 ⭐</p>
@@ -198,10 +210,10 @@ public class EmailNotificationService : IEmailNotificationService
                     <h4 style='margin-top: 0; color: #2c5aa0;'>Reply to Customer</h4>
                     <p style='margin-bottom: 10px;'>To respond to this review, simply reply to this email or click the button below:</p>
                     <p style='margin-bottom: 15px;'>
-                        <strong>Customer Email:</strong> <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {product.Name}' style='color: #2c5aa0; text-decoration: none; font-weight: bold;'>{review.CustomerEmail}</a>
+                        <strong>Customer Email:</strong> <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {productDisplayName}' style='color: #2c5aa0; text-decoration: none; font-weight: bold;'>{review.CustomerEmail}</a>
                     </p>
                     <p style='margin-bottom: 0;'>
-                        <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {product.Name}&body=Dear {review.CustomerName},%0A%0AThank you for your review of {product.Name}. ' 
+                        <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {productDisplayName}&body=Dear {review.CustomerName},%0A%0AThank you for your review of {productDisplayName}. ' 
                            style='background-color: #2c5aa0; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>
                             Reply to Customer
                         </a>
@@ -217,7 +229,7 @@ public class EmailNotificationService : IEmailNotificationService
         </html>";
     }
 
-    private string BuildResponseEmailBody(ProductReview review, Product product)
+    private string BuildResponseEmailBody(ProductReview review, Product product, string productDisplayName)
     {
         return $@"
         <html>
@@ -227,7 +239,7 @@ public class EmailNotificationService : IEmailNotificationService
                 
                 <p>Dear {review.CustomerName},</p>
                 
-                <p>Thank you for taking the time to review <strong>{product.Name}</strong>. We have responded to your feedback:</p>
+                <p>Thank you for taking the time to review <strong>{productDisplayName}</strong>. We have responded to your feedback:</p>
 
                 <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h4 style='margin-top: 0; color: #495057;'>Your Review ({review.Rating}/5 ⭐):</h4>
@@ -897,7 +909,7 @@ public class EmailNotificationService : IEmailNotificationService
         var itemsHtml = products.Any() 
             ? products.Select(item => 
                 $@"<tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.DisplayName ?? item.Name ?? "Unknown Product"}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
@@ -992,7 +1004,7 @@ public class EmailNotificationService : IEmailNotificationService
         var itemsHtml = products.Any() 
             ? products.Select(item => 
                 $@"<tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.DisplayName ?? item.Name ?? "Unknown Product"}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
                     <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
@@ -1078,7 +1090,10 @@ public class EmailNotificationService : IEmailNotificationService
 
         return string.Join(string.Empty, order.Items.Select(item =>
         {
-            var productName = HtmlEncode(item.Product?.Name ?? "Unknown Product");
+            var productNameRaw = item.Product?.GetDisplayName();
+            var productName = HtmlEncode(string.IsNullOrWhiteSpace(productNameRaw)
+                ? item.Product?.Name ?? "Unknown Product"
+                : productNameRaw);
             var quantity = item.Quantity;
             var unitPrice = item.UnitPrice ?? 0m;
             var lineTotal = unitPrice * quantity;

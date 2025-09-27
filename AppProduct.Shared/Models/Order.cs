@@ -59,7 +59,7 @@ public class Order
     public string? TrackingNumber { get; set; }
 
     [DataMember]
-    public List<OrderItem>? Items { get; set; }
+    public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 }
 
 [DataContract]

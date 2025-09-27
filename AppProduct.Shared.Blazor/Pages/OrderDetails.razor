@@ -99,7 +99,7 @@
                                                 <MudItem xs="12" sm="2">
                                                     @if (!string.IsNullOrEmpty(item.Product?.ImageUrl))
                                                     {
-                                                        <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.Name" 
+                                                        <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.GetDisplayName()" 
                                                                  Style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;" />
                                                     }
                                                     else
@@ -113,9 +113,11 @@
                                                 <MudItem xs="12" sm="6">
                                                     @{
                                                         var product = item.Product;
-                                                        var productName = string.IsNullOrWhiteSpace(product?.Name)
-                                                            ? "Product information unavailable"
-                                                            : product!.Name;
+                                                        var productName = product.GetDisplayName();
+                                                        if (string.IsNullOrWhiteSpace(productName))
+                                                        {
+                                                            productName = "Product information unavailable";
+                                                        }
 
                                                         var description = product?.Description;
                                                         var descriptionText = string.IsNullOrWhiteSpace(description)
@@ -364,7 +366,7 @@
             var supportEmail = "support@productreviews.com"; // You can make this configurable
             var subject = $"Support Request - Order {order.OrderNumber}";
             
-            var orderItems = order.Items?.Select(item => $"- {item.Product?.Name} (Qty: {item.Quantity}, Price: {item.UnitPrice:C})").ToList() ?? new List<string>();
+            var orderItems = order.Items?.Select(item => $"- {item.Product.GetDisplayName()} (Qty: {item.Quantity}, Price: {item.UnitPrice:C})").ToList() ?? new List<string>();
             var orderItemsText = string.Join("\n", orderItems);
             
             var body = $@"Hello Support Team,

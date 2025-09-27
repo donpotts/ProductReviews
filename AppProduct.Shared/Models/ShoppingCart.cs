@@ -20,5 +20,5 @@ public class ShoppingCart
     public DateTime? ModifiedDate { get; set; }
 
     [DataMember]
-    public List<ShoppingCartItem>? Items { get; set; }
+    public ICollection<ShoppingCartItem> Items { get; set; } = new List<ShoppingCartItem>();
 }

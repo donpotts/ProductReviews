@@ -6,6 +6,8 @@ using AppProduct.Data;
 using AppProduct.Shared.Models;
 using AppProduct.Services;
 using System.Security.Claims;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace AppProduct.Controllers;
 
@@ -30,7 +32,7 @@ public class EmailController(ApplicationDbContext ctx, IEmailNotificationService
         try
         {
             var order = await ctx.Order
-                .Include(o => o.Items)
+                .Include(o => o.Items!)
                 .ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
 
@@ -128,20 +130,36 @@ public class EmailController(ApplicationDbContext ctx, IEmailNotificationService
             if (session.LineItems?.Data != null && session.LineItems.Data.Any())
             {
                 var cartItems = session.LineItems.Data
-                    .Where(item => item.Quantity > 0 && item.AmountTotal > 0)
-                    .Select(item => {
-                        var unitPrice = item.Quantity > 0 ? (decimal)item.AmountTotal / (decimal)item.Quantity / 100 : 0;
-                        var productName = item.Price?.Product?.Name ?? item.Description ?? "Product";
-                        
-                        Console.WriteLine($"Processing line item: {productName}, Amount: {item.AmountTotal}, Qty: {item.Quantity}, Unit Price: ${unitPrice}");
-                        
+                    .Where(item => (item.Quantity ?? 0) > 0 && item.AmountTotal > 0)
+                    .Select(item =>
+                    {
+                        var quantity = item.Quantity ?? 0;
+                        var unitPrice = quantity > 0 ? (decimal)item.AmountTotal / quantity / 100 : 0;
+                        var productMetadata = item.Price?.Product?.Metadata ?? new Dictionary<string, string>();
+                        productMetadata.TryGetValue("product_name", out var metadataName);
+                        productMetadata.TryGetValue("product_model", out var metadataModel);
+                        productMetadata.TryGetValue("product_id", out var metadataId);
+
+                        var productName = !string.IsNullOrWhiteSpace(metadataName)
+                            ? metadataName
+                            : item.Price?.Product?.Name ?? item.Description ?? "Product";
+
+                        long? parsedId = null;
+                        if (!string.IsNullOrWhiteSpace(metadataId) && long.TryParse(metadataId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var idValue))
+                        {
+                            parsedId = idValue;
+                        }
+
+                        Console.WriteLine($"Processing line item: {item.Price?.Product?.Name ?? productName}, Model: {metadataModel}, Amount: {item.AmountTotal}, Qty: {item.Quantity}, Unit Price: ${unitPrice}");
+
                         return new CartProduct
                         {
-                            Id = null, // We don't have the original product ID
+                            Id = parsedId,
                             Name = productName,
-                            Description = item.Price?.Product?.Description ?? item.Description ?? "",
+                            Model = string.IsNullOrWhiteSpace(metadataModel) ? null : metadataModel,
+                            Description = item.Price?.Product?.Description ?? item.Description ?? string.Empty,
                             Price = unitPrice,
-                            Quantity = (int)item.Quantity
+                            Quantity = (int)quantity,
                         };
                     }).ToList();
 
@@ -176,7 +194,7 @@ public class EmailController(ApplicationDbContext ctx, IEmailNotificationService
         try
         {
             var order = await ctx.Order
-                .Include(o => o.Items)
+                .Include(o => o.Items!)
                 .ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
 

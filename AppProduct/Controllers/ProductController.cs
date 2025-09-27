@@ -216,58 +216,99 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
     }
 
     [HttpGet("search")]
-    [EnableQuery]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<IQueryable<Product>> Search([FromQuery] string? query, [FromQuery] long? categoryId, [FromQuery] long? brandId, 
-        [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] bool? inStock)
+    public async Task<ActionResult<IEnumerable<Product>>> SearchAsync(
+        [FromQuery] string? query,
+        [FromQuery] long? categoryId,
+        [FromQuery] long? brandId,
+        [FromQuery] decimal? minPrice,
+        [FromQuery] decimal? maxPrice,
+        [FromQuery] bool? inStock)
     {
-        var products = ctx.Product
-            .Include(x => x.Category)
-            .Include(x => x.Brand)
-            .Include(x => x.Feature)
-            .Include(x => x.Tag)
-            .Include(x => x.ProductReview)
-            .AsQueryable();
+        var productsQuery = ctx.Product.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var searchTerm = query.ToLower();
-            products = products.Where(p => 
-                (p.Name != null && p.Name.ToLower().Contains(searchTerm)) ||
-                (p.Description != null && p.Description.ToLower().Contains(searchTerm)) ||
-                (p.DetailedSpecs != null && p.DetailedSpecs.ToLower().Contains(searchTerm)) ||
-                (p.SKU != null && p.SKU.ToLower().Contains(searchTerm))
+            var pattern = BuildLikePattern(query.Trim());
+
+            productsQuery = productsQuery.Where(p =>
+                EF.Functions.Like(p.Model ?? string.Empty, pattern) ||
+                EF.Functions.Like(p.Name ?? string.Empty, pattern) ||
+                EF.Functions.Like(p.Description ?? string.Empty, pattern) ||
+                EF.Functions.Like(p.DetailedSpecs ?? string.Empty, pattern) ||
+                EF.Functions.Like(p.SKU ?? string.Empty, pattern) ||
+                (p.BrandId.HasValue && ctx.Brand.Any(b => b.Id == p.BrandId && EF.Functions.Like(b.Name ?? string.Empty, pattern))) ||
+                p.Brand.Any(b => EF.Functions.Like(b.Name ?? string.Empty, pattern)) ||
+                (p.CategoryId.HasValue && ctx.Category.Any(c => c.Id == p.CategoryId && EF.Functions.Like(c.Name ?? string.Empty, pattern))) ||
+                p.Category.Any(c => EF.Functions.Like(c.Name ?? string.Empty, pattern))
             );
         }
 
         if (categoryId.HasValue)
         {
-            products = products.Where(p => p.Category != null && p.Category.Any(c => c.Id == categoryId.Value));
+            var catId = categoryId.Value;
+            productsQuery = productsQuery.Where(p =>
+                (p.CategoryId.HasValue && p.CategoryId.Value == catId) ||
+                p.Category.Any(c => c.Id == catId)
+            );
         }
 
         if (brandId.HasValue)
         {
-            products = products.Where(p => p.Brand != null && p.Brand.Any(b => b.Id == brandId.Value));
+            var brandKey = brandId.Value;
+            productsQuery = productsQuery.Where(p =>
+                (p.BrandId.HasValue && p.BrandId.Value == brandKey) ||
+                p.Brand.Any(b => b.Id == brandKey)
+            );
         }
 
         if (minPrice.HasValue)
         {
-            products = products.Where(p => p.Price >= minPrice.Value);
+            productsQuery = productsQuery.Where(p => p.Price.HasValue && p.Price.Value >= minPrice.Value);
         }
 
         if (maxPrice.HasValue)
         {
-            products = products.Where(p => p.Price <= maxPrice.Value);
+            productsQuery = productsQuery.Where(p => p.Price.HasValue && p.Price.Value <= maxPrice.Value);
         }
 
         if (inStock.HasValue)
         {
-            products = products.Where(p => p.InStock == inStock.Value);
+            productsQuery = productsQuery.Where(p => p.InStock == inStock.Value);
         }
 
-        return Ok(products);
+        productsQuery = productsQuery
+            .Include(x => x.Brand)
+            .Include(x => x.Category)
+            .Include(x => x.Feature)
+            .Include(x => x.Tag)
+            .Include(x => x.ProductReview)
+            .AsNoTracking()
+            .AsSplitQuery();
+
+        var results = await productsQuery
+            .OrderBy(p => p.Model ?? p.Name)
+            .ThenBy(p => p.Name)
+            .ToListAsync();
+
+        return Ok(results);
+
+        static string BuildLikePattern(string raw)
+        {
+            if (string.IsNullOrEmpty(raw))
+            {
+                return "%";
+            }
+
+            var escaped = raw
+                .Replace("[", "[[]")
+                .Replace("%", "[%]")
+                .Replace("_", "[_]");
+
+            return $"%{escaped}%";
+        }
     }
 
     [HttpPost("bulk-upsert")]
@@ -297,6 +338,10 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
                     {
                         product.Name = $"Product {processedCount + 1}";
                     }
+                    product.Name = product.Name?.Trim();
+                    product.Model = string.IsNullOrWhiteSpace(product.Model)
+                        ? null
+                        : product.Model.Trim();
                     
                     // Set timestamps
                     var now = DateTime.UtcNow;
@@ -307,6 +352,10 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
                         if (existingProduct != null)
                         {
                             existingProduct.Name = product.Name;
+                            if (!string.IsNullOrWhiteSpace(product.Model))
+                            {
+                                existingProduct.Model = product.Model;
+                            }
                             existingProduct.Description = product.Description;
                             existingProduct.DetailedSpecs = product.DetailedSpecs;
                             existingProduct.Price = product.Price ?? 0;
@@ -339,6 +388,10 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
                         if (existingByName != null)
                         {
                             // Update existing product by name
+                            if (!string.IsNullOrWhiteSpace(product.Model))
+                            {
+                                existingByName.Model = product.Model;
+                            }
                             existingByName.Description = product.Description;
                             existingByName.DetailedSpecs = product.DetailedSpecs;
                             existingByName.Price = product.Price ?? existingByName.Price;
@@ -367,7 +420,11 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    var productName = product?.Name ?? "Unknown";
+                    var productName = product?.GetDisplayName();
+                    if (string.IsNullOrWhiteSpace(productName))
+                    {
+                        productName = product?.Name ?? "Unknown";
+                    }
                     errors.Add($"Row {processedCount + 1} (Product: {productName}): {ex.Message}");
                     if (ex.InnerException != null)
                     {

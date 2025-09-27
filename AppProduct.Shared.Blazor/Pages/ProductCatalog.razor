@@ -108,9 +108,10 @@
         }
     }
 
-    private async Task HandleSearching()
+    private Task HandleSearching()
     {
         isSearching = true;
+        return Task.CompletedTask;
     }
 
     private async Task AddToCart(Product product)
@@ -120,7 +121,7 @@
             if (product.Id.HasValue)
             {
                 await CartService.AddToCartAsync(product);
-                Snackbar.Add($"Added {product.Name} to cart", Severity.Success);
+                Snackbar.Add($"Added {product.GetDisplayName()} to cart", Severity.Success);
             }
         }
         catch (Exception ex)

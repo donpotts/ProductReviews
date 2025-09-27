@@ -1,6 +1,7 @@
 [
   {
     "Id": 1,
+    "Model": "FBP-14",
     "Name": "FlowBook Pro 14",
     "Description": "Professional laptop with advanced processor",
     "DetailedSpecs": "F7 chip with 8-core CPU and 10-core GPU, 16GB unified memory, 512GB SSD storage",
@@ -17,6 +18,7 @@
   },
   {
     "Id": 2,
+    "Model": "SLU-13",
     "Name": "StreamLine Ultra 13",
     "Description": "Ultra-portable business laptop",
     "DetailedSpecs": "Intel-compatible Core i7, 16GB LPDDR5, 512GB SSD, 13.4-inch FHD\u002B display",
@@ -33,6 +35,7 @@
   },
   {
     "Id": 3,
+    "Model": "VPP-2025",
     "Name": "VelocityPhone Pro",
     "Description": "Latest flagship smartphone",
     "DetailedSpecs": "V17 Pro chip, 128GB storage, Pro camera system, titanium design",
@@ -49,6 +52,7 @@
   },
   {
     "Id": 4,
+    "Model": "QPE-24",
     "Name": "QuantumPhone Elite",
     "Description": "Advanced Android smartphone",
     "DetailedSpecs": "Q8 Gen 3 processor, 256GB storage, 50MP camera, 6.2-inch display",
@@ -65,6 +69,7 @@
   },
   {
     "Id": 5,
+    "Model": "SWP-X1",
     "Name": "SonicWave Premium",
     "Description": "Premium noise-cancelling headphones",
     "DetailedSpecs": "30-hour battery, advanced noise cancellation, Hi-Res audio",
@@ -81,6 +86,7 @@
   },
   {
     "Id": 6,
+    "Model": "GFB-17",
     "Name": "GameForge Beast",
     "Description": "High-performance gaming laptop",
     "DetailedSpecs": "Intel i9 compatible, RTX-equivalent GPU, 32GB DDR5, 1TB SSD, 17.3-inch 240Hz display",
@@ -97,6 +103,7 @@
   },
   {
     "Id": 7,
+    "Model": "PCM-27",
     "Name": "PixelCraft Monitor 27",
     "Description": "Professional 4K display monitor",
     "DetailedSpecs": "27-inch 4K UHD, 99% sRGB color accuracy, USB-C connectivity, height adjustable",
@@ -113,6 +120,7 @@
   },
   {
     "Id": 8,
+    "Model": "TTP-12",
     "Name": "TechFlow Tablet Pro",
     "Description": "Versatile tablet for creativity",
     "DetailedSpecs": "T5 processor, 256GB storage, 12.9-inch Liquid Retina display, stylus support",

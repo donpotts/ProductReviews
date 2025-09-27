@@ -69,6 +69,10 @@
     [SupplyParameterFromQuery(Name = "session_id")]
     public string? SessionId { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "order_id")]
+    public long? OrderId { get; set; }
+
     private Order? order;
     private bool isLoading = true;
 
@@ -90,6 +94,27 @@
             catch (Exception ex)
             {
                 Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
+            }
+        }
+        else if (OrderId.HasValue)
+        {
+            try
+            {
+                order = await AppService.GetOrderByIdAsync(OrderId.Value);
+
+                if (order != null)
+                {
+                    Snackbar.Add($"Order #{order.OrderNumber} created successfully!", Severity.Success);
+                    await CartService.ClearCartAsync();
+                }
+                else
+                {
+                    Snackbar.Add("Order not found.", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading order: {ex.Message}", Severity.Error);
             }
         }
         
