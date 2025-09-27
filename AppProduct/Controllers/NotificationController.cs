@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Text.Json;
 using AppProduct.Data;
@@ -63,13 +64,95 @@ public class NotificationController : ODataController
             return BadRequest(ModelState);
         }
 
-        notification.CreatedDate = DateTime.UtcNow;
-        notification.IsRead = false;
+        if (string.IsNullOrWhiteSpace(notification.Title) || string.IsNullOrWhiteSpace(notification.Message))
+        {
+            return BadRequest("Title and message are required");
+        }
 
-        _context.Notification.Add(notification);
-        await _context.SaveChangesAsync();
+        var created = await _notificationService.CreateNotificationAsync(
+            notification.Title,
+            notification.Message,
+            string.IsNullOrWhiteSpace(notification.Type) ? "Info" : notification.Type!,
+            notification.UserId,
+            notification.ActionUrl,
+            notification.Notes);
 
-        return CreatedAtAction(nameof(Get), new { id = notification.Id }, notification);
+        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+    }
+
+    [HttpPost("send")]
+    public async Task<ActionResult<NotificationDispatchResponse>> SendAsync([FromBody] NotificationDispatchRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        if (request == null)
+        {
+            return BadRequest("Request body is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Message))
+        {
+            return BadRequest("Title and message are required");
+        }
+
+    var resolvedType = string.IsNullOrWhiteSpace(request.Type) ? "Info" : request.Type!;
+        var recipients = new HashSet<long>();
+
+        if (request.TargetUserIds != null)
+        {
+            foreach (var targetId in request.TargetUserIds)
+            {
+                if (targetId > 0)
+                {
+                    recipients.Add(targetId);
+                }
+            }
+        }
+
+        if (request.IncludeSender)
+        {
+            recipients.Add(GetCurrentUserId());
+        }
+
+        if (!request.BroadcastToAll && recipients.Count == 0)
+        {
+            return BadRequest("Specify at least one target user or enable broadcast");
+        }
+
+        var createdNotifications = new List<Notification>();
+
+        if (request.BroadcastToAll)
+        {
+            createdNotifications.Add(await _notificationService.CreateNotificationAsync(
+                request.Title,
+                request.Message,
+                resolvedType,
+                null,
+                request.ActionUrl,
+                request.Notes));
+        }
+
+        foreach (var recipientId in recipients)
+        {
+            createdNotifications.Add(await _notificationService.CreateNotificationAsync(
+                request.Title,
+                request.Message,
+                resolvedType,
+                recipientId,
+                request.ActionUrl,
+                request.Notes));
+        }
+
+        var response = new NotificationDispatchResponse
+        {
+            CreatedCount = createdNotifications.Count,
+            Notifications = createdNotifications
+        };
+
+        return Ok(response);
     }
 
     [HttpPut("{id}")]

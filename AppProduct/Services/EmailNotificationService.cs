@@ -2,6 +2,7 @@ using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Azure.Identity;
 using AppProduct.Shared.Models;
+using System.Net;
 
 namespace AppProduct.Services;
 
@@ -329,13 +330,18 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateOrderConfirmationEmail(Order order, string customerEmail)
     {
-        var itemsHtml = order.Items?.Select(item => 
-            $@"<tr>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
-            </tr>").Aggregate((a, b) => a + b) ?? "";
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
+            ? $"<p><strong>Estimated Delivery:</strong> {order.EstimatedDeliveryDate.Value:MMM dd, yyyy}</p>"
+            : string.Empty;
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
 
         return $@"<!DOCTYPE html>
         <html>
@@ -352,10 +358,11 @@ public class EmailNotificationService : IEmailNotificationService
                 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
-                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
-                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
                     <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
                     <p><strong>Status:</strong> {order.Status}</p>
+                    {estimatedDelivery}
                 </div>
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
@@ -375,19 +382,19 @@ public class EmailNotificationService : IEmailNotificationService
                         <tfoot>
                             <tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.Subtotal:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
                             </tr>
-                            {(order.TaxAmount > 0 ? $@"<tr>
+                            {(taxAmount > 0 ? $@"<tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TaxAmount:F2}</td>
-                            </tr>" : "")}
-                            {(order.ShippingAmount > 0 ? $@"<tr>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.ShippingAmount:F2}</td>
-                            </tr>" : "")}
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
                             <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -395,7 +402,17 @@ public class EmailNotificationService : IEmailNotificationService
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
-                    <p>{order.ShippingAddress}</p>
+                    <p>{shippingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Information</h3>
+                    <p>{billingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
+                    <p>{notesInfo}</p>
                 </div>
 
                 <p>We will send you another email with tracking information once your order ships.</p>
@@ -415,13 +432,27 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateOrderNotificationEmail(Order order, string customerEmail)
     {
-        var itemsHtml = order.Items?.Select(item => 
-            $@"<tr>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
-            </tr>").Aggregate((a, b) => a + b) ?? "";
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+        var paymentIntent = string.IsNullOrWhiteSpace(order.PaymentIntentId)
+            ? "<em>Not provided</em>"
+            : HtmlEncode(order.PaymentIntentId);
+        var userId = string.IsNullOrWhiteSpace(order.UserId)
+            ? "<em>Unknown</em>"
+            : HtmlEncode(order.UserId);
+        var trackingInfo = string.IsNullOrWhiteSpace(order.TrackingNumber)
+            ? "<em>Not assigned</em>"
+            : HtmlEncode(order.TrackingNumber);
+        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
+            ? FormatDate(order.EstimatedDeliveryDate, "Not set")
+            : "<em>Not set</em>";
 
         return $@"<!DOCTYPE html>
         <html>
@@ -435,12 +466,16 @@ public class EmailNotificationService : IEmailNotificationService
                 <p>A new order has been placed.</p>
                 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
-                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
-                    <p><strong>Customer Email:</strong> {customerEmail}</p>
-                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Summary</h3>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
                     <p><strong>Status:</strong> {order.Status}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
+                    <p><strong>User Id:</strong> {userId}</p>
+                    <p><strong>Payment Intent:</strong> {paymentIntent}</p>
+                    <p><strong>Estimated Delivery:</strong> {estimatedDelivery}</p>
+                    <p><strong>Tracking Number:</strong> {trackingInfo}</p>
                 </div>
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
@@ -460,19 +495,19 @@ public class EmailNotificationService : IEmailNotificationService
                         <tfoot>
                             <tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.Subtotal:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
                             </tr>
-                            {(order.TaxAmount > 0 ? $@"<tr>
+                            {(taxAmount > 0 ? $@"<tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TaxAmount:F2}</td>
-                            </tr>" : "")}
-                            {(order.ShippingAmount > 0 ? $@"<tr>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.ShippingAmount:F2}</td>
-                            </tr>" : "")}
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
                             <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -480,19 +515,18 @@ public class EmailNotificationService : IEmailNotificationService
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
-                    <p>{order.ShippingAddress}</p>
+                    <p>{shippingInfo}</p>
                 </div>
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Information</h3>
-                    <p>{order.BillingAddress}</p>
+                    <p>{billingInfo}</p>
                 </div>
 
-                {(string.IsNullOrEmpty(order.Notes) ? "" : $@"
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
-                    <p>{order.Notes}</p>
-                </div>")}
+                    <p>{notesInfo}</p>
+                </div>
 
                 <p>Please process this order promptly.</p>
             </div>
@@ -573,13 +607,15 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateOrderCancellationEmail(Order order, string customerEmail)
     {
-        var itemsHtml = order.Items?.Select(item => 
-            $@"<tr>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
-            </tr>").Aggregate((a, b) => a + b) ?? "";
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate, "Unknown");
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
 
         return $@"<!DOCTYPE html>
         <html>
@@ -596,8 +632,8 @@ public class EmailNotificationService : IEmailNotificationService
                 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
-                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
-                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
                     <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
                     <p><strong>Status:</strong> {order.Status}</p>
                 </div>
@@ -617,12 +653,39 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
                             <tr style='font-weight: bold; background-color: #f8f9fa;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Shipping Information</h3>
+                    <p>{shippingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Billing Information</h3>
+                    <p>{billingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Order Notes</h3>
+                    <p>{notesInfo}</p>
                 </div>
 
                 <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
@@ -646,13 +709,21 @@ public class EmailNotificationService : IEmailNotificationService
 
     private string GenerateOrderCancellationNotificationEmail(Order order, string customerEmail)
     {
-        var itemsHtml = order.Items?.Select(item => 
-            $@"<tr>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
-            </tr>").Aggregate((a, b) => a + b) ?? "";
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate, "Unknown");
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+        var paymentIntent = string.IsNullOrWhiteSpace(order.PaymentIntentId)
+            ? "<em>Not provided</em>"
+            : HtmlEncode(order.PaymentIntentId);
+        var userId = string.IsNullOrWhiteSpace(order.UserId)
+            ? "<em>Unknown</em>"
+            : HtmlEncode(order.UserId);
 
         return $@"<!DOCTYPE html>
         <html>
@@ -667,11 +738,13 @@ public class EmailNotificationService : IEmailNotificationService
                 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
-                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
-                    <p><strong>Customer Email:</strong> {customerEmail}</p>
-                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
+                    <p><strong>User Id:</strong> {userId}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
                     <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
                     <p><strong>Status:</strong> {order.Status}</p>
+                    <p><strong>Payment Intent:</strong> {paymentIntent}</p>
                 </div>
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
@@ -689,12 +762,39 @@ public class EmailNotificationService : IEmailNotificationService
                             {itemsHtml}
                         </tbody>
                         <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
                             <tr style='font-weight: bold; background-color: #f8f9fa;'>
                                 <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Shipping Information</h3>
+                    <p>{shippingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Billing Information</h3>
+                    <p>{billingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Order Notes</h3>
+                    <p>{notesInfo}</p>
                 </div>
 
                 <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
@@ -967,5 +1067,52 @@ public class EmailNotificationService : IEmailNotificationService
             </div>
         </body>
         </html>";
+    }
+
+    private static string BuildOrderItemsHtml(Order order)
+    {
+        if (order.Items == null || order.Items.Count == 0)
+        {
+            return "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in order</td></tr>";
+        }
+
+        return string.Join(string.Empty, order.Items.Select(item =>
+        {
+            var productName = HtmlEncode(item.Product?.Name ?? "Unknown Product");
+            var quantity = item.Quantity;
+            var unitPrice = item.UnitPrice ?? 0m;
+            var lineTotal = unitPrice * quantity;
+
+            return $@"<tr>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{productName}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{quantity}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${unitPrice:F2}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${lineTotal:F2}</td>
+            </tr>";
+        }));
+    }
+
+    private static string FormatDate(DateTime? date, string placeholder = "Not provided")
+    {
+        return date.HasValue
+            ? HtmlEncode(date.Value.ToString("MMM dd, yyyy"))
+            : $"<em>{HtmlEncode(placeholder)}</em>";
+    }
+
+    private static string ConvertToHtmlLines(string? value, string placeholder = "Not provided")
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return $"<em>{HtmlEncode(placeholder)}</em>";
+        }
+
+        var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        var encoded = HtmlEncode(normalized);
+        return encoded.Replace("\n", "<br>");
+    }
+
+    private static string HtmlEncode(string? value)
+    {
+        return WebUtility.HtmlEncode(value ?? string.Empty);
     }
 }

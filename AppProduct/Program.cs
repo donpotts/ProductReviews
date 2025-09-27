@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using AppProduct.Data;
 using AppProduct.Models;
+using AppProduct.Data.Seed;
 using AppProduct.Services;
 using AppProduct.Shared.Models;
 using QuestPDF.Infrastructure;
@@ -199,11 +200,20 @@ if (app.Environment.IsDevelopment())
     using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        if (!dbContext.TaxRate.Any())
+        await TaxRateSeedData.EnsureSeedDataAsync(dbContext);
+
+        if (!await dbContext.ShippingRate.AnyAsync())
         {
-            var taxRates = GetDefaultTaxRates();
-            dbContext.TaxRate.AddRange(taxRates);
-            dbContext.SaveChanges();
+            dbContext.ShippingRate.Add(new ShippingRate
+            {
+                Name = "Standard Shipping",
+                Amount = 9.99m,
+                IsDefault = true,
+                IsActive = true,
+                CreatedDate = DateTime.UtcNow,
+                Notes = "Initial default shipping rate"
+            });
+            await dbContext.SaveChangesAsync();
         }
     }
 }
@@ -359,22 +369,9 @@ using (var scope = app.Services.CreateScope())
                 ctx.SaveChanges();
             }
         }
-        
+        await TaxRateSeedData.EnsureSeedDataAsync(ctx);
 
     }
 }
 app.UseRateLimiter();
 app.Run();
-
-static List<TaxRate> GetDefaultTaxRates()
-{
-    var now = DateTime.UtcNow;
-    return new List<TaxRate>
-    {
-        new() { State = "Tennessee", StateCode = "TN", StateTaxRate = 7.00m, LocalTaxRate = 2.55m, CombinedTaxRate = 9.55m, IsActive = true, CreatedDate = now, ModifiedDate = now },
-        new() { State = "California", StateCode = "CA", StateTaxRate = 7.25m, LocalTaxRate = 3.33m, CombinedTaxRate = 10.58m, IsActive = true, CreatedDate = now, ModifiedDate = now },
-        new() { State = "Texas", StateCode = "TX", StateTaxRate = 6.25m, LocalTaxRate = 1.94m, CombinedTaxRate = 8.19m, IsActive = true, CreatedDate = now, ModifiedDate = now },
-        new() { State = "Florida", StateCode = "FL", StateTaxRate = 6.00m, LocalTaxRate = 1.05m, CombinedTaxRate = 7.05m, IsActive = true, CreatedDate = now, ModifiedDate = now },
-        new() { State = "New York", StateCode = "NY", StateTaxRate = 4.00m, LocalTaxRate = 4.49m, CombinedTaxRate = 8.49m, IsActive = true, CreatedDate = now, ModifiedDate = now }
-    };
-}

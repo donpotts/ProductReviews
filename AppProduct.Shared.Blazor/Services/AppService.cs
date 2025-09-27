@@ -943,6 +943,17 @@ public class AppService(
         return await response.Content.ReadFromJsonAsync<Notification>();
     }
 
+    public async Task<NotificationDispatchResponse?> SendNotificationAsync(NotificationDispatchRequest requestPayload)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/send");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestPayload);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<NotificationDispatchResponse>();
+    }
+
     public async Task DeleteNotificationAsync(long key)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
@@ -1185,6 +1196,26 @@ public class AppService(
         return await response.Content.ReadFromJsonAsync<TaxRate[]>();
     }
 
+    public async Task<ShippingRate?> GetDefaultShippingRateAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/shippingrate/default");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<ShippingRate>();
+    }
+
     // Payment Methods
     public async Task<CreateStripeSessionResponse?> CreateStripeSessionAsync(string baseUrl, string? shippingAddress = null, 
         string? billingAddress = null, string? billingStateCode = null, decimal shippingAmount = 0, string? notes = null)
@@ -1227,6 +1258,31 @@ public class AppService(
         request.Content = JsonContent.Create(requestData);
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Order>();
+    }
+
+    public async Task<Order?> CancelPaymentAsync(string stripeSessionId)
+    {
+        if (string.IsNullOrWhiteSpace(stripeSessionId))
+        {
+            throw new ArgumentException("Stripe session ID is required.", nameof(stripeSessionId));
+        }
+
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        var requestData = new CancelPaymentRequest
+        {
+            StripeSessionId = stripeSessionId
+        };
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/cancel-payment");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
         return await response.Content.ReadFromJsonAsync<Order>();
     }
 

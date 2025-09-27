@@ -72,19 +72,27 @@
             
             <div style="padding: 16px 0;">
                 <MudText Typo="Typo.h6" style="margin-bottom: 8px;">Order Summary</MudText>
-                
+
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <MudText>Subtotal:</MudText>
                     <MudText>$@subtotal.ToString("F2")</MudText>
                 </div>
-                
+
+                @if (defaultShippingRate is not null)
+                {
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <MudText>@shippingLabel:</MudText>
+                        <MudText>$@shippingAmount.ToString("F2")</MudText>
+                    </div>
+                }
+
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                     <MudText>Tax (8.75%):</MudText>
                     <MudText>$@tax.ToString("F2")</MudText>
                 </div>
-                
+
                 <MudDivider style="margin: 12px 0;" />
-                
+
                 <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
                     <MudText Typo="Typo.h6">Total:</MudText>
                     <MudText Typo="Typo.h6" Color="Color.Primary">$@total.ToString("F2")</MudText>
@@ -94,7 +102,7 @@
                     @if (IsBusy)
                     {
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                        <span style="margin-left: 8px;">Processing...</span>
+                        <span style="margin-left: 8px;">Preparing checkout...</span>
                     }
                     else
                     {
@@ -104,6 +112,9 @@
                 <MudButton FullWidth="true" Variant="Variant.Outlined" OnClick="@(() => ToggleCartDrawer(false))">
                     Continue Shopping
                 </MudButton>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: 8px; display:block;">
+                    Need Purchase Order or Cash? Choose your payment method on the checkout page.
+                </MudText>
             </div>
         }
         else
@@ -126,13 +137,27 @@
 
     // Order calculations
     private decimal subtotal => CartService.CartItems?.Sum(x => (x.Price ?? 0) * x.Quantity) ?? 0;
+    private ShippingRate? defaultShippingRate;
+    private decimal shippingAmount => defaultShippingRate?.Amount ?? 0m;
+    private string shippingLabel => defaultShippingRate?.Name ?? "Standard Shipping";
     private decimal tax => Math.Round(subtotal * 0.0875m, 2);
-    private decimal total => subtotal + tax;
+    private decimal total => subtotal + tax + shippingAmount;
 
     protected override async Task OnInitializedAsync()
     {
         CartService.CartChanged += OnCartChanged;
         await CartService.InitializeAsync();
+
+        try
+        {
+            defaultShippingRate = await AppService.GetDefaultShippingRateAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load default shipping rate: {ex.Message}");
+            Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+        }
     }
 
     private void OnCartChanged()
@@ -165,45 +190,67 @@
 
     private async Task HandleCheckout()
     {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (CartService.CartItems?.Any() != true)
+        {
+            Snackbar.Add("Cart is empty.", Severity.Error);
+            return;
+        }
+
         try
         {
             IsBusy = true;
-
-            var cartProducts = CartService.CartItems?.Select(x => new CartProduct
-            {
-                Id = x.Id,
-                Name = x.Name,
-                Description = x.Description ?? "No description provided",
-                Price = x.Price >= 1 ? x.Price : 1,
-                Quantity = x.Quantity >= 1 ? x.Quantity : 1
-            }).ToList();
-
-            if (cartProducts == null || !cartProducts.Any())
-            {
-                Snackbar.Add("Cart is empty.", Severity.Error);
-                return;
-            }
-
-            var result = await AppService.CreateCheckoutSessionAsync(cartProducts);
-
-            if (!string.IsNullOrEmpty(result.ErrorMessage))
-            {
-                Snackbar.Add(result.ErrorMessage, Severity.Error);
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(result.Url))
-            {
-                Navigation.NavigateTo(result.Url, true);
-            }
+            await SyncCartWithServerAsync();
+            ToggleCartDrawer(false);
+            Navigation.NavigateTo("/checkout");
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error during checkout: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Checkout preparation failed: {ex}");
+            Snackbar.Add($"Error preparing checkout: {ex.Message}", Severity.Error);
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task SyncCartWithServerAsync()
+    {
+        try
+        {
+            await AppService.ClearCartAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Unable to synchronize cart with server.", ex);
+        }
+
+        if (CartService.CartItems == null || CartService.CartItems.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var item in CartService.CartItems)
+        {
+            if (!item.Id.HasValue)
+            {
+                continue;
+            }
+
+            var quantity = Math.Max(1, item.Quantity);
+            try
+            {
+                await AppService.AddToCartAsync(item.Id.Value, quantity);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to add '{item.Name}' to server cart.", ex);
+            }
         }
     }
 

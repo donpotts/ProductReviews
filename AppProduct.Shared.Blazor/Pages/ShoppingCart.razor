@@ -122,17 +122,25 @@
                             <MudText Typo="Typo.body1">Subtotal</MudText>
                             <MudText Typo="Typo.body1">@subtotal.ToString("C")</MudText>
                         </MudStack>
-                        
+
                         <MudStack Row="true" Justify="Justify.SpaceBetween">
                             <MudText Typo="Typo.body1">Items</MudText>
                             <MudText Typo="Typo.body1">@totalItems</MudText>
                         </MudStack>
 
+                        @if (defaultShippingRate is not null)
+                        {
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.body1">@shippingLabel</MudText>
+                                <MudText Typo="Typo.body1">@shippingAmount.ToString("C")</MudText>
+                            </MudStack>
+                        }
+
                         <MudDivider Class="my-2" />
-                        
+
                         <MudStack Row="true" Justify="Justify.SpaceBetween">
                             <MudText Typo="Typo.subtitle1">Total</MudText>
-                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@subtotal.ToString("C")</MudText>
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@orderTotal.ToString("C")</MudText>
                         </MudStack>
                     </MudStack>
 
@@ -154,8 +162,12 @@
 @code {
     private AppProduct.Shared.Models.ShoppingCart? cart;
     private bool isLoading = true;
+    private ShippingRate? defaultShippingRate;
     private decimal subtotal => cart?.Items?.Sum(x => (x.UnitPrice ?? 0) * x.Quantity) ?? 0;
     private int totalItems => cart?.Items?.Sum(x => x.Quantity) ?? 0;
+    private decimal shippingAmount => defaultShippingRate?.Amount ?? 0m;
+    private string shippingLabel => defaultShippingRate?.Name ?? "Standard Shipping";
+    private decimal orderTotal => subtotal + shippingAmount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,7 +179,21 @@
         try
         {
             isLoading = true;
-            cart = await AppService.GetShoppingCartAsync();
+            var cartTask = AppService.GetShoppingCartAsync();
+            var shippingTask = AppService.GetDefaultShippingRateAsync();
+
+            cart = await cartTask;
+
+            try
+            {
+                defaultShippingRate = await shippingTask;
+            }
+            catch (Exception shippingEx)
+            {
+                defaultShippingRate = null;
+                Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
+                Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {

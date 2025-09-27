@@ -6,8 +6,13 @@ using AppProduct.Data;
 using AppProduct.Shared.Models;
 using AppProduct.Services;
 using System.Security.Claims;
+using System.Globalization;
 using Stripe;
 using Stripe.Checkout;
+using ShippingRateModel = AppProduct.Shared.Models.ShippingRate;
+using StripeLineItem = Stripe.LineItem;
+using TaxRateModel = AppProduct.Shared.Models.TaxRate;
+using SharedPaymentMethod = AppProduct.Shared.Models.PaymentMethod;
 
 namespace AppProduct.Controllers;
 
@@ -17,6 +22,199 @@ namespace AppProduct.Controllers;
 [EnableRateLimiting("Fixed")]
 public class PaymentController(ApplicationDbContext ctx, IConfiguration configuration, IEmailNotificationService emailService) : ControllerBase
 {
+    [HttpPost("create-stripe-session")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CreateStripeSessionResponse>> CreateStripeSessionAsync([FromBody] CreateStripeSessionRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        var stripeSecretKey = configuration["Stripe:SecretKey"];
+        if (string.IsNullOrWhiteSpace(stripeSecretKey))
+        {
+            return BadRequest(new
+            {
+                error = "Stripe is not configured. Please set Stripe:SecretKey in configuration.",
+            });
+        }
+
+        var cart = await ctx.ShoppingCart
+            .Include(x => x.Items)!
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+
+        if (cart?.Items == null || cart.Items.Count == 0)
+        {
+            return BadRequest(new { error = "Cart is empty" });
+        }
+
+        StripeConfiguration.ApiKey = stripeSecretKey;
+
+        var baseUrl = !string.IsNullOrWhiteSpace(request.BaseUrl)
+            ? request.BaseUrl.TrimEnd('/')
+            : $"{Request.Scheme}://{Request.Host}";
+
+        var productLineItems = new List<SessionLineItemOptions>();
+        var metadataProductIds = new List<string>();
+        var cartSubtotal = 0m;
+
+        foreach (var cartItem in cart.Items)
+        {
+            var quantity = Math.Max(1, cartItem.Quantity);
+            var unitPrice = cartItem.UnitPrice ?? cartItem.Product?.Price ?? 0m;
+            if (unitPrice < 0)
+            {
+                unitPrice = 0;
+            }
+
+            cartSubtotal += unitPrice * quantity;
+
+            productLineItems.Add(new SessionLineItemOptions
+            {
+                Quantity = quantity,
+                PriceData = new SessionLineItemPriceDataOptions
+                {
+                    UnitAmount = ToStripeAmount(unitPrice),
+                    Currency = "usd",
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    {
+                        Name = cartItem.Product?.Name ?? "Product",
+                        Description = cartItem.Product?.Description ?? string.Empty,
+                    },
+                },
+            });
+
+            if (cartItem.ProductId.HasValue)
+            {
+                metadataProductIds.Add(cartItem.ProductId.Value.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+
+        TaxRateModel? taxRate = null;
+        var billingStateCode = request.BillingStateCode?.Trim();
+        if (!string.IsNullOrEmpty(billingStateCode))
+        {
+            taxRate = await ctx.TaxRate
+                .Where(x => x.StateCode == billingStateCode && x.IsActive)
+                .OrderByDescending(x => x.ModifiedDate)
+                .FirstOrDefaultAsync();
+        }
+
+        var taxAmount = taxRate?.CombinedTaxRate is decimal combinedRate && combinedRate > 0
+            ? Math.Round(cartSubtotal * combinedRate / 100m, 2, MidpointRounding.AwayFromZero)
+            : 0m;
+
+        if (taxAmount > 0)
+        {
+            productLineItems.Add(new SessionLineItemOptions
+            {
+                Quantity = 1,
+                PriceData = new SessionLineItemPriceDataOptions
+                {
+                    UnitAmount = ToStripeAmount(taxAmount),
+                    Currency = "usd",
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    {
+                        Name = "Tax",
+                        Description = taxRate?.State ?? "Sales Tax",
+                    },
+                },
+            });
+        }
+
+        var shippingRate = await GetDefaultShippingRateAsync();
+        var shippingAmount = request.ShippingAmount > 0 ? request.ShippingAmount : shippingRate?.Amount ?? 0m;
+        if (shippingAmount > 0)
+        {
+            productLineItems.Add(new SessionLineItemOptions
+            {
+                Quantity = 1,
+                PriceData = new SessionLineItemPriceDataOptions
+                {
+                    UnitAmount = ToStripeAmount(shippingAmount),
+                    Currency = "usd",
+                    ProductData = new SessionLineItemPriceDataProductDataOptions
+                    {
+                        Name = shippingRate?.Name ?? "Shipping",
+                        Description = shippingRate?.Notes ?? "Shipping",
+                    },
+                },
+            });
+        }
+
+        var metadata = new Dictionary<string, string>
+        {
+            ["user_id"] = userId
+        };
+
+        if (metadataProductIds.Count > 0)
+        {
+            metadata["product_ids"] = string.Join(',', metadataProductIds);
+        }
+
+        if (!string.IsNullOrWhiteSpace(billingStateCode))
+        {
+            metadata["billing_state_code"] = billingStateCode;
+        }
+
+        if (taxRate?.CombinedTaxRate is decimal rateValue)
+        {
+            metadata["tax_rate"] = rateValue.ToString(CultureInfo.InvariantCulture);
+        }
+
+        metadata["shipping_amount"] = shippingAmount.ToString(CultureInfo.InvariantCulture);
+
+        if (shippingRate?.Id is long shippingRateId)
+        {
+            metadata["shipping_rate_id"] = shippingRateId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        AddMetadataIfPresent(metadata, "shipping_address", request.ShippingAddress);
+        AddMetadataIfPresent(metadata, "billing_address", request.BillingAddress);
+        AddMetadataIfPresent(metadata, "notes", request.Notes);
+
+        var sessionOptions = new SessionCreateOptions
+        {
+            PaymentMethodTypes = new List<string> { "card" },
+            Mode = "payment",
+            LineItems = productLineItems,
+            SuccessUrl = $"{baseUrl}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
+            CancelUrl = $"{baseUrl}/checkout/cancel?session_id={{CHECKOUT_SESSION_ID}}",
+            Metadata = metadata
+        };
+
+        var sessionService = new SessionService();
+        var session = await sessionService.CreateAsync(sessionOptions);
+
+        return Ok(new CreateStripeSessionResponse
+        {
+            SessionId = session.Id,
+            Url = session.Url
+        });
+
+        static long ToStripeAmount(decimal amount)
+        {
+            var normalized = Math.Max(0m, decimal.Round(amount, 2, MidpointRounding.AwayFromZero));
+            return (long)decimal.Round(normalized * 100m, 0, MidpointRounding.AwayFromZero);
+        }
+
+        static void AddMetadataIfPresent(IDictionary<string, string> metadataValues, string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            value = value.Trim();
+            metadataValues[key] = value.Length > 500 ? value[..500] : value;
+        }
+    }
+
     [HttpPost("checkout")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -53,24 +251,43 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             var subtotal = cart.Sum(item => (item.Price ?? 0) * item.Quantity);
             var totalTax = subtotal * taxRate;
 
+            var shippingRate = await GetDefaultShippingRateAsync();
+            var shippingAmount = shippingRate?.Amount ?? 0m;
+
             var domain = $"{Request.Scheme}://{Request.Host}";
-            var options = new SessionCreateOptions
+            var lineItems = new List<SessionLineItemOptions>();
+            var productIdsMetadata = new List<string>();
+
+            foreach (var cartItem in cart)
             {
-                PaymentMethodTypes = new List<string> { "card" },
-                LineItems = cart.Select(item => new SessionLineItemOptions
+                lineItems.Add(new SessionLineItemOptions
                 {
                     PriceData = new SessionLineItemPriceDataOptions
                     {
-                        UnitAmount = (long)((item.Price ?? 0) * 100), // Convert to cents
+                        UnitAmount = (long)((cartItem.Price ?? 0) * 100), // Convert to cents
                         Currency = "usd",
                         ProductData = new SessionLineItemPriceDataProductDataOptions
                         {
-                            Name = item.Name ?? "Product",
-                            Description = item.Description ?? "",
+                            Name = cartItem.Name ?? "Product",
+                            Description = cartItem.Description ?? string.Empty,
                         },
                     },
-                    Quantity = item.Quantity,
-                }).ToList(),
+                    Quantity = cartItem.Quantity,
+                });
+
+                productIdsMetadata.Add(cartItem.Id?.ToString() ?? string.Empty);
+            }
+
+            var metadata = new Dictionary<string, string>();
+            if (productIdsMetadata.Count > 0)
+            {
+                metadata["product_ids"] = string.Join(',', productIdsMetadata);
+            }
+
+            var options = new SessionCreateOptions
+            {
+                PaymentMethodTypes = new List<string> { "card" },
+                LineItems = lineItems,
                 Mode = "payment",
                 SuccessUrl = $"{domain}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
                 CancelUrl = $"{domain}/checkout/cancel?session_id={{CHECKOUT_SESSION_ID}}",
@@ -93,6 +310,35 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                     },
                     Quantity = 1,
                 });
+            }
+
+            if (shippingAmount > 0)
+            {
+                options.LineItems.Add(new SessionLineItemOptions
+                {
+                    PriceData = new SessionLineItemPriceDataOptions
+                    {
+                        UnitAmount = (long)(shippingAmount * 100),
+                        Currency = "usd",
+                        ProductData = new SessionLineItemPriceDataProductDataOptions
+                        {
+                            Name = shippingRate?.Name ?? "Shipping",
+                            Description = shippingRate?.Notes ?? "Shipping",
+                        },
+                    },
+                    Quantity = 1,
+                });
+            }
+
+            metadata["shipping_amount"] = shippingAmount.ToString(CultureInfo.InvariantCulture);
+            if (shippingRate is not null)
+            {
+                metadata["shipping_rate_id"] = shippingRate.Id.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (metadata.Count > 0)
+            {
+                options.Metadata = metadata;
             }
 
             var service = new SessionService();
@@ -126,23 +372,38 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
 
         try
         {
-            if (request.PaymentMethod == AppProduct.Shared.Models.PaymentMethod.CreditCard)
+            if (request.PaymentMethod == SharedPaymentMethod.CreditCard)
             {
                 if (string.IsNullOrEmpty(request.StripeSessionId))
                     return BadRequest(new { error = "Stripe session ID is required for credit card payments" });
 
                 StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
                 var service = new SessionService();
-                var session = await service.GetAsync(request.StripeSessionId);
+                var session = await service.GetAsync(
+                    request.StripeSessionId,
+                    new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
 
-                if (session.PaymentStatus != "paid")
+                if (!string.Equals(session.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
                     return BadRequest(new { error = "Payment not completed" });
 
-                request.PaymentIntentId = session.PaymentIntentId;
+                var paymentIntentId = session.PaymentIntentId ?? request.PaymentIntentId ?? session.Id;
+
+                var order = await CreateOrderFromStripeSessionAsync(
+                    session,
+                    userId,
+                    request.PaymentMethod,
+                    OrderStatus.Confirmed,
+                    request.ShippingAddress,
+                    request.BillingAddress,
+                    request.Notes,
+                    paymentIntentId,
+                    clearCart: true,
+                    sendEmail: true);
+                return Ok(order);
             }
 
-            var order = await CreateOrderFromCartAsync(request, request.PaymentIntentId);
-            return Ok(order);
+            var manualOrder = await CreateOrderFromStoredCartAsync(request, userId);
+            return Ok(manualOrder);
         }
         catch (Exception ex)
         {
@@ -150,90 +411,394 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         }
     }
 
-    private async Task<Order> CreateOrderFromCartAsync(ConfirmPaymentRequest request, string? paymentIntentId = null)
+    [HttpPost("cancel-payment")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<Order>> CancelPaymentAsync([FromBody] CancelPaymentRequest request)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
-            throw new UnauthorizedAccessException();
-
-        // Since we're using CartService with local storage, we need to get the Stripe session 
-        // to retrieve the cart items that were used in the payment
-        if (request.PaymentMethod == AppProduct.Shared.Models.PaymentMethod.CreditCard && !string.IsNullOrEmpty(request.StripeSessionId))
         {
-            StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
-            var service = new SessionService();
-            var session = await service.GetAsync(request.StripeSessionId, new SessionGetOptions
-            {
-                Expand = new List<string> { "line_items" }
-            });
-
-            if (session.LineItems == null || !session.LineItems.Data.Any())
-                throw new InvalidOperationException("No items found in payment session");
-
-            // Calculate totals from Stripe session
-            var subtotal = session.LineItems.Data
-                .Where(item => !item.Description?.Contains("Tax") == true && !item.Description?.Contains("Shipping") == true)
-                .Sum(item => (decimal)item.AmountTotal / 100); // Stripe amounts are in cents
-
-            var taxAmount = session.LineItems.Data
-                .Where(item => item.Description?.Contains("Tax") == true)
-                .Sum(item => (decimal)item.AmountTotal / 100);
-
-            var shippingAmount = session.LineItems.Data
-                .Where(item => item.Description?.Contains("Shipping") == true)
-                .Sum(item => (decimal)item.AmountTotal / 100);
-
-            var total = (decimal)session.AmountTotal / 100;
-
-            var order = new Order
-            {
-                OrderNumber = GenerateOrderNumber(),
-                UserId = userId,
-                OrderDate = DateTime.UtcNow,
-                Status = OrderStatus.Confirmed,
-                Subtotal = subtotal,
-                TaxAmount = taxAmount,
-                ShippingAmount = shippingAmount,
-                TotalAmount = total,
-                PaymentMethod = request.PaymentMethod,
-                PaymentIntentId = paymentIntentId,
-                ShippingAddress = request.ShippingAddress ?? session.ShippingDetails?.Address?.ToString(),
-                BillingAddress = request.BillingAddress,
-                Notes = request.Notes,
-                EstimatedDeliveryDate = DateTime.UtcNow.AddDays(7),
-                Items = session.LineItems.Data
-                    .Where(item => !item.Description?.Contains("Tax") == true && !item.Description?.Contains("Shipping") == true)
-                    .Select(item => new OrderItem
-                    {
-                        ProductId = null, // We'll need to resolve this differently
-                        Quantity = (int)item.Quantity,
-                        UnitPrice = (decimal)item.AmountTotal / (decimal)item.Quantity / 100,
-                        TotalPrice = (decimal)item.AmountTotal / 100
-                    }).ToList()
-            };
-
-            ctx.Order.Add(order);
-            await ctx.SaveChangesAsync();
-
-            // Send email notifications for successful order
-            try
-            {
-                var userEmail = User.FindFirstValue(ClaimTypes.Email);
-                if (!string.IsNullOrEmpty(userEmail))
-                {
-                    await emailService.SendOrderConfirmationAsync(order, userEmail);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log email error but don't fail the order creation
-                Console.WriteLine($"Failed to send order confirmation email: {ex.Message}");
-            }
-
-            return order;
+            return Unauthorized();
         }
 
-        throw new InvalidOperationException("Unable to create order from cart");
+        if (string.IsNullOrWhiteSpace(request.StripeSessionId))
+        {
+            return BadRequest(new { error = "Stripe session ID is required" });
+        }
+
+        var stripeSecretKey = configuration["Stripe:SecretKey"];
+        if (string.IsNullOrWhiteSpace(stripeSecretKey))
+        {
+            return BadRequest(new { error = "Stripe is not configured. Please set Stripe:SecretKey in configuration." });
+        }
+
+        StripeConfiguration.ApiKey = stripeSecretKey;
+        var service = new SessionService();
+
+        Session session;
+        try
+        {
+            session = await service.GetAsync(
+                request.StripeSessionId,
+                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = $"Unable to retrieve Stripe session: {ex.Message}" });
+        }
+
+        var paymentIntentId = session.PaymentIntentId ?? request.StripeSessionId;
+
+        var existingOrder = await ctx.Order
+            .Include(o => o.Items)!
+            .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o => o.PaymentIntentId == paymentIntentId);
+
+        if (existingOrder != null)
+        {
+            if (existingOrder.Status != OrderStatus.Cancelled)
+            {
+                existingOrder.Status = OrderStatus.Cancelled;
+                await ctx.SaveChangesAsync();
+                await TrySendOrderEmailsAsync(existingOrder, OrderStatus.Cancelled);
+            }
+
+            return Ok(existingOrder);
+        }
+
+        var order = await CreateOrderFromStripeSessionAsync(
+            session,
+            userId,
+            SharedPaymentMethod.CreditCard,
+            OrderStatus.Cancelled,
+            shippingAddressOverride: null,
+            billingAddressOverride: null,
+            notesOverride: null,
+            explicitPaymentIntentId: paymentIntentId,
+            clearCart: false,
+            sendEmail: true);
+
+        return Ok(order);
+    }
+
+    private async Task<Order> CreateOrderFromStripeSessionAsync(
+        Session session,
+        string userId,
+    SharedPaymentMethod paymentMethod,
+        OrderStatus status,
+        string? shippingAddressOverride,
+        string? billingAddressOverride,
+        string? notesOverride,
+        string? explicitPaymentIntentId,
+        bool clearCart,
+        bool sendEmail)
+    {
+        if (session.LineItems == null || !session.LineItems.Data.Any())
+        {
+            var service = new SessionService();
+            session = await service.GetAsync(
+                session.Id,
+                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
+        }
+
+        if (session.LineItems == null || !session.LineItems.Data.Any())
+        {
+            throw new InvalidOperationException("No items found in payment session");
+        }
+
+        static bool ContainsToken(StripeLineItem item, string token) =>
+            item.Description?.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        var productLineItems = session.LineItems.Data
+            .Where(item => !ContainsToken(item, "Tax") && !ContainsToken(item, "Shipping"))
+            .ToList();
+
+        var subtotal = productLineItems
+            .Sum(item => (decimal)item.AmountTotal / 100m);
+
+        var taxAmount = session.TotalDetails?.AmountTax is long taxCents
+            ? taxCents / 100m
+            : session.LineItems.Data
+                .Where(item => ContainsToken(item, "Tax"))
+                .Sum(item => (decimal)item.AmountTotal / 100m);
+
+        var shippingAmount = await DetermineShippingAmountAsync(session);
+
+        var amountTotalCents = session.AmountTotal
+            ?? throw new InvalidOperationException("Stripe session did not include a total amount");
+        var total = amountTotalCents / 100m;
+
+        var productIdsFromMetadata = new Queue<long?>(
+            session.Metadata != null
+            && session.Metadata.TryGetValue("product_ids", out var productIdsRaw)
+            && productIdsRaw != null
+                ? productIdsRaw
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => long.TryParse(id, out var parsedId) ? parsedId : (long?)null)
+                : Array.Empty<long?>());
+
+        var orderItems = new List<OrderItem>();
+        foreach (var lineItem in productLineItems)
+        {
+            if (lineItem.Quantity is not { } quantity || quantity <= 0)
+            {
+                continue;
+            }
+
+            var amountTotal = lineItem.AmountTotal;
+            if (amountTotal <= 0)
+            {
+                continue;
+            }
+
+            long? productId = null;
+            if (productIdsFromMetadata.Count > 0)
+            {
+                productId = productIdsFromMetadata.Dequeue();
+            }
+
+            var orderItem = new OrderItem
+            {
+                ProductId = productId,
+                Quantity = (int)quantity,
+                UnitPrice = (decimal)amountTotal / quantity / 100m,
+                TotalPrice = (decimal)amountTotal / 100m
+            };
+
+            orderItems.Add(orderItem);
+        }
+
+        var productIds = orderItems
+            .Where(item => item.ProductId.HasValue)
+            .Select(item => item.ProductId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (productIds.Any())
+        {
+            var productsById = await ctx.Product
+                .Where(p => p.Id.HasValue && productIds.Contains(p.Id.Value))
+                .ToDictionaryAsync(p => p.Id!.Value);
+
+            foreach (var orderItem in orderItems)
+            {
+                if (orderItem.ProductId.HasValue &&
+                    productsById.TryGetValue(orderItem.ProductId.Value, out var product))
+                {
+                    orderItem.Product = product;
+                }
+            }
+        }
+
+        var shippingAddress = !string.IsNullOrWhiteSpace(shippingAddressOverride)
+            ? shippingAddressOverride
+            : GetMetadataValue(session, "shipping_address") ?? session.ShippingDetails?.Address?.ToString();
+
+        var billingAddress = !string.IsNullOrWhiteSpace(billingAddressOverride)
+            ? billingAddressOverride
+            : GetMetadataValue(session, "billing_address");
+
+        var notes = !string.IsNullOrWhiteSpace(notesOverride)
+            ? notesOverride
+            : GetMetadataValue(session, "notes");
+
+        var paymentIntentId = explicitPaymentIntentId ?? session.PaymentIntentId ?? session.Id;
+
+        var estimatedDelivery = status == OrderStatus.Cancelled
+            ? (DateTime?)null
+            : DateTime.UtcNow.AddDays(7);
+
+        var order = new Order
+        {
+            OrderNumber = GenerateOrderNumber(),
+            UserId = userId,
+            OrderDate = DateTime.UtcNow,
+            Status = status,
+            Subtotal = subtotal,
+            TaxAmount = taxAmount,
+            ShippingAmount = shippingAmount,
+            TotalAmount = total,
+            PaymentMethod = paymentMethod,
+            PaymentIntentId = paymentIntentId,
+            ShippingAddress = shippingAddress,
+            BillingAddress = billingAddress,
+            Notes = notes,
+            EstimatedDeliveryDate = estimatedDelivery,
+            Items = orderItems
+        };
+
+        ctx.Order.Add(order);
+        await ctx.SaveChangesAsync();
+
+        if (clearCart)
+        {
+            await ClearShoppingCartAsync(userId);
+        }
+
+        if (sendEmail)
+        {
+            await TrySendOrderEmailsAsync(order, status);
+        }
+
+        return order;
+    }
+
+    private static string? GetMetadataValue(Session session, string key)
+    {
+        if (session.Metadata == null)
+        {
+            return null;
+        }
+
+        if (session.Metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value.Trim();
+        }
+
+        return null;
+    }
+
+    private async Task<Order> CreateOrderFromStoredCartAsync(ConfirmPaymentRequest request, string userId)
+    {
+        var cart = await ctx.ShoppingCart
+            .Include(x => x.Items)!
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+
+        if (cart?.Items == null || cart.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Cart is empty");
+        }
+
+        var subtotal = cart.Items.Sum(item => (item.UnitPrice ?? 0) * item.Quantity);
+
+    TaxRateModel? taxRate = null;
+        if (!string.IsNullOrWhiteSpace(request.BillingStateCode))
+        {
+            taxRate = await ctx.TaxRate
+                .Where(x => x.StateCode == request.BillingStateCode && x.IsActive)
+                .FirstOrDefaultAsync();
+        }
+
+        var taxAmount = taxRate is not null
+            ? subtotal * taxRate.CombinedTaxRate / 100m
+            : 0m;
+
+        var shippingAmount = request.ShippingAmount;
+        if (shippingAmount == null)
+        {
+            shippingAmount = (await GetDefaultShippingRateAsync())?.Amount ?? 0m;
+        }
+
+        var total = subtotal + taxAmount + (shippingAmount ?? 0m);
+
+        var orderItems = cart.Items.Select(item => new OrderItem
+        {
+            ProductId = item.ProductId,
+            Quantity = item.Quantity,
+            UnitPrice = item.UnitPrice,
+            TotalPrice = (item.UnitPrice ?? 0) * item.Quantity
+        }).ToList();
+
+        var order = new Order
+        {
+            OrderNumber = GenerateOrderNumber(),
+            UserId = userId,
+            OrderDate = DateTime.UtcNow,
+            Status = OrderStatus.Pending,
+            Subtotal = subtotal,
+            TaxAmount = taxAmount,
+            ShippingAmount = shippingAmount ?? 0m,
+            TotalAmount = total,
+            PaymentMethod = request.PaymentMethod,
+            ShippingAddress = request.ShippingAddress,
+            BillingAddress = request.BillingAddress,
+            Notes = request.Notes,
+            EstimatedDeliveryDate = DateTime.UtcNow.AddDays(7),
+            Items = orderItems
+        };
+
+        ctx.Order.Add(order);
+
+        ctx.ShoppingCartItem.RemoveRange(cart.Items);
+        cart.Items.Clear();
+        cart.ModifiedDate = DateTime.UtcNow;
+
+        await ctx.SaveChangesAsync();
+
+        return order;
+    }
+
+    private async Task<decimal> DetermineShippingAmountAsync(Session session)
+    {
+        if (session.Metadata != null &&
+            session.Metadata.TryGetValue("shipping_amount", out var shippingRaw) &&
+            decimal.TryParse(shippingRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out var metadataShipping))
+        {
+            return metadataShipping;
+        }
+
+        if (session.TotalDetails?.AmountShipping is long shippingCents)
+        {
+            return shippingCents / 100m;
+        }
+
+        var rate = await GetDefaultShippingRateAsync();
+        return rate?.Amount ?? 0m;
+    }
+
+    private async Task<ShippingRateModel?> GetDefaultShippingRateAsync()
+    {
+        return await ctx.ShippingRate
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.IsDefault)
+            .ThenByDescending(x => x.CreatedDate)
+            .FirstOrDefaultAsync();
+    }
+
+    private async Task ClearShoppingCartAsync(string userId)
+    {
+        var cart = await ctx.ShoppingCart
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+
+        if (cart?.Items == null || cart.Items.Count == 0)
+        {
+            return;
+        }
+
+        ctx.ShoppingCartItem.RemoveRange(cart.Items);
+        cart.Items.Clear();
+        cart.ModifiedDate = DateTime.UtcNow;
+        await ctx.SaveChangesAsync();
+    }
+
+    private async Task TrySendOrderEmailsAsync(Order order, OrderStatus status)
+    {
+        try
+        {
+            var userEmail = User.FindFirstValue(ClaimTypes.Email);
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return;
+            }
+
+            switch (status)
+            {
+                case OrderStatus.Confirmed:
+                    await emailService.SendOrderConfirmationAsync(order, userEmail);
+                    break;
+                case OrderStatus.Cancelled:
+                    await emailService.SendOrderCancellationAsync(order, userEmail);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to send {status} email: {ex.Message}");
+        }
     }
 
     private static string GenerateOrderNumber()

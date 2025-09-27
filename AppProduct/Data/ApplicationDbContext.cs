@@ -21,6 +21,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<OrderItem> OrderItem => Set<OrderItem>();
     public DbSet<TaxRate> TaxRate => Set<TaxRate>();
     public DbSet<Address> Address => Set<Address>();
+    public DbSet<ShippingRate> ShippingRate => Set<ShippingRate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,6 +88,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<OrderItem>()
             .Property(e => e.TotalPrice)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<ShippingRate>()
+            .Property(e => e.Amount)
             .HasPrecision(19, 4);
 
         // Tax Rate configuration

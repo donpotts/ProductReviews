@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using AppProduct.Data;
 using AppProduct.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -20,15 +21,22 @@ public class NotificationService : INotificationService
         _logger = logger;
     }
 
-    public async Task<Notification> CreateNotificationAsync(string title, string message, string type = "Info", long? userId = null, string? actionUrl = null)
+    public async Task<Notification> CreateNotificationAsync(
+        string title,
+        string message,
+        string type = "Info",
+        long? userId = null,
+        string? actionUrl = null,
+        string? notes = null)
     {
         var notification = new Notification
         {
             Title = title,
             Message = message,
-            Type = type,
+            Type = string.IsNullOrWhiteSpace(type) ? "Info" : type,
             UserId = userId,
             ActionUrl = actionUrl,
+            Notes = notes,
             CreatedDate = DateTime.UtcNow,
             IsRead = false
         };
@@ -126,7 +134,7 @@ public class NotificationService : INotificationService
         }
     }
 
-    public async IAsyncEnumerable<Notification> GetNotificationStream(long userId, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Notification> GetNotificationStream(long userId, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting SSE stream for user {UserId}", userId);
 

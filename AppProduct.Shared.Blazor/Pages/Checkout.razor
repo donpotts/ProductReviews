@@ -189,7 +189,7 @@
                         </MudStack>
                         
                         <MudStack Row="true" Justify="Justify.SpaceBetween">
-                            <MudText Typo="Typo.body1">Shipping</MudText>
+                            <MudText Typo="Typo.body1">@shippingLabel</MudText>
                             <MudText Typo="Typo.body1">@shippingAmount.ToString("C")</MudText>
                         </MudStack>
                         
@@ -243,8 +243,10 @@
     private PaymentMethod selectedPaymentMethod = PaymentMethod.CreditCard;
     private string? notes;
     
+    private ShippingRate? defaultShippingRate;
     private decimal subtotal => cart?.Items?.Sum(x => (x.UnitPrice ?? 0) * x.Quantity) ?? 0;
-    private decimal shippingAmount = 10.00m; // Fixed shipping for now
+    private decimal shippingAmount = 0m;
+    private string shippingLabel => defaultShippingRate?.Name ?? "Standard Shipping";
     private decimal taxAmount = 0;
     private decimal total => subtotal + shippingAmount + taxAmount;
 
@@ -259,7 +261,25 @@
         try
         {
             isLoading = true;
-            cart = await AppService.GetShoppingCartAsync();
+            var cartTask = AppService.GetShoppingCartAsync();
+            var shippingTask = AppService.GetDefaultShippingRateAsync();
+
+            cart = await cartTask;
+
+            try
+            {
+                defaultShippingRate = await shippingTask;
+                if (defaultShippingRate is not null)
+                {
+                    shippingAmount = defaultShippingRate.Amount;
+                }
+            }
+            catch (Exception shippingEx)
+            {
+                defaultShippingRate = null;
+                Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
+                Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {

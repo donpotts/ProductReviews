@@ -1,8 +1,8 @@
 @page "/checkout/cancel"
 @using AppProduct.Shared.Blazor.Services
+@using AppProduct.Shared.Models
 @inject NavigationManager Navigation
 @inject AppService AppService
-@inject CartService CartService
 @inject ISnackbar Snackbar
 
 <PageTitle>Payment Cancelled</PageTitle>
@@ -15,6 +15,13 @@
             <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">
                 Your payment was cancelled. Your items are still in your cart.
             </MudText>
+
+            @if (cancelledOrder is not null)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="mb-4" Dense="true">
+                    Order <strong>@cancelledOrder.OrderNumber</strong> has been marked as cancelled. You can review it on the My Orders page.
+                </MudAlert>
+            }
             
             <MudStack Direction="Row" Spacing="3">
                 <MudButton Variant="Variant.Filled" 
@@ -29,6 +36,12 @@
                           Href="/catalog">
                     Continue Shopping
                 </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                          Color="Color.Info"
+                          StartIcon="@Icons.Material.Filled.ReceiptLong"
+                          Href="/orders">
+                    View My Orders
+                </MudButton>
             </MudStack>
         </MudStack>
     </MudPaper>
@@ -39,42 +52,42 @@
     [SupplyParameterFromQuery(Name = "session_id")]
     public string? SessionId { get; set; }
 
+    private Order? cancelledOrder;
+
     protected override async Task OnInitializedAsync()
     {
+        if (string.IsNullOrEmpty(SessionId))
+        {
+            Snackbar.Add("Payment cancelled.", Severity.Warning, config =>
+            {
+                config.VisibleStateDuration = 2000;
+            });
+            return;
+        }
+
         try
         {
-            // Try to send cancellation notification with current cart items
-            var cartItems = CartService.CartItems?.ToList() ?? new List<CartProduct>();
-            
-            Console.WriteLine($"CheckoutCancel - Cart items: {cartItems.Count}, SessionId: {SessionId}");
-            foreach (var item in cartItems)
-            {
-                Console.WriteLine($"  Cart item: {item.Name}, Qty: {item.Quantity}, Price: ${item.Price}");
-            }
-            
-            // Only send email if we have cart items or session info
-            if (cartItems.Any() || !string.IsNullOrEmpty(SessionId))
-            {
-                Console.WriteLine("Sending cancellation email...");
-                await AppService.SendCheckoutCancellationEmailAsync(cartItems, SessionId);
-                Console.WriteLine("Cancellation email sent successfully");
-            }
-            else
-            {
-                Console.WriteLine("No cart items or session ID - skipping cancellation email");
-            }
-            
-            Snackbar.Add("Payment cancelled.", Severity.Warning, config =>
+            cancelledOrder = await AppService.CancelPaymentAsync(SessionId);
+
+            var message = cancelledOrder?.OrderNumber is not null
+                ? $"Payment cancelled. Order #{cancelledOrder.OrderNumber} recorded."
+                : "Payment cancelled.";
+
+            Snackbar.Add(message, Severity.Warning, config =>
             {
                 config.VisibleStateDuration = 1000;
             });
         }
         catch (Exception ex)
         {
-            // Don't show error to user for email notification failure
-            Console.WriteLine($"Failed to send cancellation notification: {ex.Message}");
+            Console.WriteLine($"Failed to record cancelled payment: {ex.Message}");
             Console.WriteLine($"Exception details: {ex}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+            Snackbar.Add("Payment cancelled, but we couldn't record the order automatically.", Severity.Warning, config =>
+            {
+                config.VisibleStateDuration = 2000;
+            });
         }
     }
 }

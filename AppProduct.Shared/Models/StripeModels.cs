@@ -33,3 +33,10 @@ public class CreateStripeSessionRequest
     [DataMember]
     public string? Notes { get; set; }
 }
+
+[DataContract]
+public class CancelPaymentRequest
+{
+    [DataMember]
+    public string StripeSessionId { get; set; } = "";
+}
