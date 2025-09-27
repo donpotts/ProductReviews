@@ -31,6 +31,10 @@
     </MudTooltip>
 
     <MudSpacer />
+    
+    <AuthorizeView>
+        <CartIcon />
+    </AuthorizeView>
 
     @if (CheckedVariable)
     {
@@ -57,8 +61,14 @@
                 <MudLink Href="/tag" Class="d-flex shrink-link" Color="Color.Inherit">
                     <MudIcon Icon="@Icons.Material.Filled.Label" Class="mr-1" /> Tags
                 </MudLink>
+                <MudLink Href="/catalog" Class="d-flex shrink-link" Color="Color.Inherit">
+                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Class="mr-1" /> Catalog
+                </MudLink>
                 <MudLink Href="/productchat" Class="d-flex shrink-link" Color="Color.Inherit">
                     <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-1" /> Chat
+                </MudLink>
+                <MudLink Href="/orders" Class="d-flex shrink-link" Color="Color.Inherit">
+                    <MudIcon Icon="@Icons.Material.Filled.ListAlt" Class="mr-1" /> Orders
                 </MudLink>
             </AuthorizeView>
             <AuthorizeView Roles="Administrator">
@@ -117,7 +127,9 @@
                     <MudNavLink Href="/feature" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Extension">Features</MudNavLink>
                     <MudNavLink Href="/productreview" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RateReview">Product Reviews</MudNavLink>
                     <MudNavLink Href="/tag" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Label">Tags</MudNavLink>
+                    <MudNavLink Href="/catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Storefront">Product Catalog</MudNavLink>
                     <MudNavLink Href="/productchat" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.SmartToy">Product Chats</MudNavLink>
+                    <MudNavLink Href="/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">My Orders</MudNavLink>
                 </AuthorizeView>
                 <AuthorizeView Roles="Administrator">
                     <MudNavLink Href="/user" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Users</MudNavLink>

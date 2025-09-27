@@ -1,0 +1,226 @@
+@page "/cart"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Shopping Cart</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-2" />
+        Shopping Cart
+    </MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (cart == null || cart.Items == null || !cart.Items.Any())
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Your cart is empty</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center">
+                    Browse our products and add items to your cart to get started!
+                </MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/product" StartIcon="@Icons.Material.Filled.ShoppingBag">
+                    Shop Now
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="8">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.h6" Class="mb-4">Cart Items (@cart.Items.Count)</MudText>
+                    
+                    @foreach (var item in cart.Items)
+                    {
+                        <MudCard Class="mb-3" Elevation="1">
+                            <MudCardContent>
+                                <MudGrid AlignItems="Center">
+                                    <MudItem xs="12" sm="2">
+                                        @if (!string.IsNullOrEmpty(item.Product?.ImageUrl))
+                                        {
+                                            <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.Name" 
+                                                     Style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;" />
+                                        }
+                                        else
+                                        {
+                                            <MudPaper Class="d-flex align-center justify-center" 
+                                                     Style="width: 80px; height: 80px; background-color: var(--mud-palette-grey-lighten-4);">
+                                                <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Default" />
+                                            </MudPaper>
+                                        }
+                                    </MudItem>
+                                    <MudItem xs="12" sm="4">
+                                        <MudText Typo="Typo.subtitle1">@item.Product?.Name</MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Default">
+                                            @item.Product?.Description?.Substring(0, Math.Min(item.Product.Description.Length, 100))@(item.Product?.Description?.Length > 100 ? "..." : "")
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Primary">
+                                            @((item.UnitPrice ?? 0).ToString("C"))
+                                        </MudText>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="3">
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Remove" 
+                                                          Size="Size.Small" 
+                                                          OnClick="() => UpdateQuantity(item, item.Quantity - 1)"
+                                                          Disabled="@(item.Quantity <= 1)" />
+                                            <MudText Typo="Typo.body1" Style="min-width: 30px; text-align: center;">@item.Quantity</MudText>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                                                          Size="Size.Small" 
+                                                          OnClick="() => UpdateQuantity(item, item.Quantity + 1)" />
+                                        </MudStack>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="2">
+                                        <MudText Typo="Typo.subtitle1" Align="Align.Right">
+                                            @(((item.UnitPrice ?? 0) * item.Quantity).ToString("C"))
+                                        </MudText>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="1">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                      Color="Color.Error" 
+                                                      Size="Size.Small"
+                                                      OnClick="() => RemoveItem(item)" />
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    }
+
+                    <MudDivider Class="my-4" />
+                    
+                    <MudStack Row="true" Justify="Justify.SpaceBetween">
+                        <MudButton Variant="Variant.Outlined" 
+                                  Color="Color.Secondary" 
+                                  StartIcon="@Icons.Material.Filled.DeleteSweep"
+                                  OnClick="ClearCart">
+                            Clear Cart
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" 
+                                  Color="Color.Primary" 
+                                  StartIcon="@Icons.Material.Filled.ShoppingBag"
+                                  Href="/product">
+                            Continue Shopping
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.h6" Class="mb-4">Order Summary</MudText>
+                    
+                    <MudStack Spacing="2">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body1">Subtotal</MudText>
+                            <MudText Typo="Typo.body1">@subtotal.ToString("C")</MudText>
+                        </MudStack>
+                        
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body1">Items</MudText>
+                            <MudText Typo="Typo.body1">@totalItems</MudText>
+                        </MudStack>
+
+                        <MudDivider Class="my-2" />
+                        
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.subtitle1">Total</MudText>
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@subtotal.ToString("C")</MudText>
+                        </MudStack>
+                    </MudStack>
+
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              FullWidth="true" 
+                              Class="mt-4"
+                              StartIcon="@Icons.Material.Filled.Payment"
+                              Href="/checkout"
+                              Disabled="@(!cart.Items.Any())">
+                        Proceed to Checkout
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private AppProduct.Shared.Models.ShoppingCart? cart;
+    private bool isLoading = true;
+    private decimal subtotal => cart?.Items?.Sum(x => (x.UnitPrice ?? 0) * x.Quantity) ?? 0;
+    private int totalItems => cart?.Items?.Sum(x => x.Quantity) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCart();
+    }
+
+    private async Task LoadCart()
+    {
+        try
+        {
+            isLoading = true;
+            cart = await AppService.GetShoppingCartAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading cart: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateQuantity(AppProduct.Shared.Models.ShoppingCartItem item, int newQuantity)
+    {
+        if (newQuantity <= 0)
+        {
+            await RemoveItem(item);
+            return;
+        }
+
+        try
+        {
+            cart = await AppService.UpdateCartItemAsync(item.Id!.Value, newQuantity);
+            Snackbar.Add("Item quantity updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating quantity: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RemoveItem(AppProduct.Shared.Models.ShoppingCartItem item)
+    {
+        try
+        {
+            cart = await AppService.RemoveFromCartAsync(item.Id!.Value);
+            Snackbar.Add("Item removed from cart", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error removing item: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ClearCart()
+    {
+        try
+        {
+            cart = await AppService.ClearCartAsync();
+            Snackbar.Add("Cart cleared", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error clearing cart: {ex.Message}", Severity.Error);
+        }
+    }
+}

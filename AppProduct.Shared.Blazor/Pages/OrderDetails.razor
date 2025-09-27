@@ -1,0 +1,318 @@
+@page "/order/{OrderId:long}"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Order Details</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h4">
+            <MudIcon Icon="@Icons.Material.Filled.Receipt" Class="mr-2" />
+            Order Details
+        </MudText>
+        <MudButton Variant="Variant.Outlined" 
+                  Color="Color.Primary" 
+                  StartIcon="@Icons.Material.Filled.ArrowBack"
+                  Href="/orders">
+            Back to Orders
+        </MudButton>
+    </MudStack>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (order == null)
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.Error" Size="Size.Large" Color="Color.Error" />
+                <MudText Typo="Typo.h6">Order not found</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/orders">
+                    View All Orders
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="8">
+                <MudStack Spacing="4">
+                    <!-- Order Info -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Order Information</MudText>
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Default">Order Number</MudText>
+                                    <MudText Typo="Typo.subtitle1">@order.OrderNumber</MudText>
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Default">Order Date</MudText>
+                                    <MudText Typo="Typo.subtitle1">@order.OrderDate?.ToString("MMM dd, yyyy hh:mm tt")</MudText>
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Default">Status</MudText>
+                                    <OrderStatusChip Status="order.Status" />
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Default">Payment Method</MudText>
+                                    <MudText Typo="Typo.subtitle1">@GetPaymentMethodText()</MudText>
+                                </MudStack>
+                            </MudItem>
+                            @if (!string.IsNullOrEmpty(order.TrackingNumber))
+                            {
+                                <MudItem xs="12">
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.body2" Color="Color.Default">Tracking Number</MudText>
+                                        <MudText Typo="Typo.subtitle1">@order.TrackingNumber</MudText>
+                                    </MudStack>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudPaper>
+
+                    <!-- Order Items -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Order Items</MudText>
+                        @if (order.Items != null && order.Items.Any())
+                        {
+                            <MudStack Spacing="2">
+                                @foreach (var item in order.Items)
+                                {
+                                    <MudCard Elevation="1">
+                                        <MudCardContent>
+                                            <MudGrid AlignItems="Center">
+                                                <MudItem xs="12" sm="2">
+                                                    @if (!string.IsNullOrEmpty(item.Product?.ImageUrl))
+                                                    {
+                                                        <MudImage Src="@item.Product.ImageUrl" Alt="@item.Product.Name" 
+                                                                 Style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudPaper Class="d-flex align-center justify-center" 
+                                                                 Style="width: 80px; height: 80px; background-color: var(--mud-palette-grey-lighten-4);">
+                                                            <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Default" />
+                                                        </MudPaper>
+                                                    }
+                                                </MudItem>
+                                                <MudItem xs="12" sm="6">
+                                                    <MudStack Spacing="1">
+                                                        <MudText Typo="Typo.subtitle1">@item.Product?.Name</MudText>
+                                                        <MudText Typo="Typo.body2" Color="Color.Default">
+                                                            @item.Product?.Description?.Substring(0, Math.Min(item.Product.Description.Length, 100))@(item.Product?.Description?.Length > 100 ? "..." : "")
+                                                        </MudText>
+                                                        <MudText Typo="Typo.body2" Color="Color.Primary">
+                                                            Unit Price: @item.UnitPrice?.ToString("C")
+                                                        </MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                                <MudItem xs="12" sm="2">
+                                                    <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                                                        <MudText Typo="Typo.body2" Color="Color.Default">Quantity</MudText>
+                                                        <MudText Typo="Typo.subtitle1">@item.Quantity</MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                                <MudItem xs="12" sm="2">
+                                                    <MudStack AlignItems="AlignItems.End" Spacing="1">
+                                                        <MudText Typo="Typo.body2" Color="Color.Default">Total</MudText>
+                                                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">
+                                                            @item.TotalPrice?.ToString("C")
+                                                        </MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                            </MudGrid>
+                                        </MudCardContent>
+                                    </MudCard>
+                                }
+                            </MudStack>
+                        }
+                    </MudPaper>
+
+                    <!-- Addresses -->
+                    <MudGrid Spacing="4">
+                        <MudItem xs="12" md="6">
+                            <MudPaper Class="pa-4" Elevation="2">
+                                <MudText Typo="Typo.h6" Class="mb-3">Shipping Address</MudText>
+                                <MudText Typo="Typo.body2" Style="white-space: pre-line;">@order.ShippingAddress</MudText>
+                            </MudPaper>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudPaper Class="pa-4" Elevation="2">
+                                <MudText Typo="Typo.h6" Class="mb-3">Billing Address</MudText>
+                                <MudText Typo="Typo.body2" Style="white-space: pre-line;">@order.BillingAddress</MudText>
+                            </MudPaper>
+                        </MudItem>
+                    </MudGrid>
+                </MudStack>
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudStack Spacing="4">
+                    <!-- Order Summary -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Order Summary</MudText>
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.body1">Subtotal</MudText>
+                                <MudText Typo="Typo.body1">@order.Subtotal?.ToString("C")</MudText>
+                            </MudStack>
+                            
+                            @if (order.TaxAmount > 0)
+                            {
+                                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                    <MudText Typo="Typo.body1">Tax</MudText>
+                                    <MudText Typo="Typo.body1">@order.TaxAmount?.ToString("C")</MudText>
+                                </MudStack>
+                            }
+                            
+                            @if (order.ShippingAmount > 0)
+                            {
+                                <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                    <MudText Typo="Typo.body1">Shipping</MudText>
+                                    <MudText Typo="Typo.body1">@order.ShippingAmount?.ToString("C")</MudText>
+                                </MudStack>
+                            }
+                            
+                            <MudDivider />
+                            
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.h6">Total</MudText>
+                                <MudText Typo="Typo.h6" Color="Color.Primary">@order.TotalAmount?.ToString("C")</MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudPaper>
+
+                    <!-- Actions -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Actions</MudText>
+                        <MudStack Spacing="2">
+                            @if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Confirmed || order.Status == OrderStatus.Processing)
+                            {
+                                <MudButton Variant="Variant.Outlined" 
+                                          Color="Color.Error" 
+                                          FullWidth="true"
+                                          StartIcon="@Icons.Material.Filled.Cancel"
+                                          OnClick="CancelOrder">
+                                    Cancel Order
+                                </MudButton>
+                            }
+                            
+                            <MudButton Variant="Variant.Outlined" 
+                                      Color="Color.Primary" 
+                                      FullWidth="true"
+                                      StartIcon="@Icons.Material.Filled.Print"
+                                      OnClick="PrintOrder">
+                                Print Order
+                            </MudButton>
+                            
+                            <MudButton Variant="Variant.Outlined" 
+                                      Color="Color.Secondary" 
+                                      FullWidth="true"
+                                      StartIcon="@Icons.Material.Filled.Help"
+                                      Href="/support">
+                                Contact Support
+                            </MudButton>
+                        </MudStack>
+                    </MudPaper>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public long OrderId { get; set; }
+
+    private Order? order;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrder();
+    }
+
+    private async Task LoadOrder()
+    {
+        try
+        {
+            isLoading = true;
+            order = await AppService.GetOrderByIdAsync(OrderId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading order: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CancelOrder()
+    {
+        try
+        {
+            if (order?.Id.HasValue == true)
+            {
+                var confirmMessage = order.Status == OrderStatus.Processing 
+                    ? "This order is being processed. Are you sure you want to cancel it? This may require manual intervention to reverse any processing steps."
+                    : "Are you sure you want to cancel this order?";
+
+                bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", confirmMessage);
+                if (!confirmed) return;
+
+                await AppService.CancelOrderAsync(order.Id.Value);
+                
+                // Send cancellation email notifications
+                try
+                {
+                    await AppService.SendOrderCancellationEmailAsync(order.Id.Value);
+                }
+                catch (Exception emailEx)
+                {
+                    // Don't fail cancellation if email fails
+                    Console.WriteLine($"Failed to send cancellation email: {emailEx.Message}");
+                }
+
+                Snackbar.Add("Order cancelled successfully.", Severity.Success, config =>
+                {
+                    config.VisibleStateDuration = 1000;
+                });
+                await LoadOrder(); // Refresh the order
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error cancelling order: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void PrintOrder()
+    {
+        // Implementation would depend on printing requirements
+        Snackbar.Add("Print functionality would be implemented here", Severity.Info);
+    }
+
+    private string GetPaymentMethodText()
+    {
+        return order?.PaymentMethod switch
+        {
+            PaymentMethod.CreditCard => "Credit Card",
+            PaymentMethod.PurchaseOrder => "Purchase Order",
+            PaymentMethod.Cash => "Cash",
+            _ => "Unknown"
+        };
+    }
+}

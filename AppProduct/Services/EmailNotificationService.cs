@@ -9,6 +9,9 @@ public interface IEmailNotificationService
 {
     Task SendNewReviewNotificationAsync(ProductReview review, Product product);
     Task SendReviewResponseNotificationAsync(ProductReview review, Product product);
+    Task SendOrderConfirmationAsync(Order order, string customerEmail);
+    Task SendOrderCancellationAsync(Order order, string customerEmail);
+    Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string customerEmail);
 }
 
 public class EmailNotificationService : IEmailNotificationService
@@ -248,6 +251,643 @@ public class EmailNotificationService : IEmailNotificationService
                 <p style='font-size: 12px; color: #6c757d;'>
                     This is an automated notification. Please do not reply to this email.
                 </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    public async Task SendOrderConfirmationAsync(Order order, string customerEmail)
+    {
+        if (_graphServiceClient == null)
+        {
+            _logger.LogInformation("Graph client not available");
+            return;
+        }
+
+        var adminEmail = _configuration["EmailSettings:AdminEmail"];
+        if (string.IsNullOrEmpty(adminEmail))
+        {
+            _logger.LogWarning("Admin email not configured");
+            return;
+        }
+
+        try
+        {
+            var subject = $"Order Confirmation - {order.OrderNumber}";
+            var customerBody = GenerateOrderConfirmationEmail(order, customerEmail);
+            var adminBody = GenerateOrderNotificationEmail(order, customerEmail);
+
+            // Send to customer
+            var customerMessage = new Message
+            {
+                Subject = subject,
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = customerBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
+                }
+            };
+
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = customerMessage
+            });
+
+            // Send to admin
+            var adminMessage = new Message
+            {
+                Subject = $"New Order Received - {order.OrderNumber}",
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = adminBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
+                }
+            };
+
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = adminMessage
+            });
+
+            _logger.LogInformation("Order confirmation emails sent for order {OrderId}", order.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send order confirmation emails for order {OrderId}", order.Id);
+            throw;
+        }
+    }
+
+    private string GenerateOrderConfirmationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = order.Items?.Select(item => 
+            $@"<tr>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
+            </tr>").Aggregate((a, b) => a + b) ?? "";
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Order Confirmation</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>Order Confirmation</h2>
+                
+                <p>Dear Customer,</p>
+                
+                <p>Thank you for your order! We have received your order and will process it shortly.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
+                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
+                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
+                    <p>{order.ShippingAddress}</p>
+                </div>
+
+                <p>We will send you another email with tracking information once your order ships.</p>
+
+                <p>Thank you for your business!</p>
+
+                <p>Best regards,<br>The ProductReviews Team</p>
+
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
+                <p style='font-size: 12px; color: #6c757d;'>
+                    This is an automated confirmation. Please do not reply to this email.
+                </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private string GenerateOrderNotificationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = order.Items?.Select(item => 
+            $@"<tr>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
+            </tr>").Aggregate((a, b) => a + b) ?? "";
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>New Order Notification</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>New Order Received</h2>
+                
+                <p>A new order has been placed.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
+                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
+                    <p><strong>Customer Email:</strong> {customerEmail}</p>
+                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
+                    <p>{order.ShippingAddress}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Information</h3>
+                    <p>{order.BillingAddress}</p>
+                </div>
+
+                {(string.IsNullOrEmpty(order.Notes) ? "" : $@"
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
+                    <p>{order.Notes}</p>
+                </div>")}
+
+                <p>Please process this order promptly.</p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    public async Task SendOrderCancellationAsync(Order order, string customerEmail)
+    {
+        if (_graphServiceClient == null)
+        {
+            _logger.LogInformation("Graph client not available");
+            return;
+        }
+
+        var adminEmail = _configuration["EmailSettings:AdminEmail"];
+        if (string.IsNullOrEmpty(adminEmail))
+        {
+            _logger.LogWarning("Admin email not configured");
+            return;
+        }
+
+        try
+        {
+            var subject = $"Order Cancelled - {order.OrderNumber}";
+            var customerBody = GenerateOrderCancellationEmail(order, customerEmail);
+            var adminBody = GenerateOrderCancellationNotificationEmail(order, customerEmail);
+
+            // Send to customer
+            var customerMessage = new Message
+            {
+                Subject = subject,
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = customerBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
+                }
+            };
+
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = customerMessage
+            });
+
+            // Send to admin
+            var adminMessage = new Message
+            {
+                Subject = $"Order Cancelled - {order.OrderNumber}",
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = adminBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
+                }
+            };
+
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = adminMessage
+            });
+
+            _logger.LogInformation("Order cancellation emails sent for order {OrderId}", order.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send order cancellation emails for order {OrderId}", order.Id);
+            throw;
+        }
+    }
+
+    private string GenerateOrderCancellationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = order.Items?.Select(item => 
+            $@"<tr>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
+            </tr>").Aggregate((a, b) => a + b) ?? "";
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Order Cancelled</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
+                <h2 style='color: #856404; margin-top: 0;'>Order Cancelled</h2>
+                
+                <p>Dear Customer,</p>
+                
+                <p>We're writing to inform you that your order has been cancelled. If this was unexpected, please contact our customer service team.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
+                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
+                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Items in Cancelled Order</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
+                    <h3 style='margin-top: 0; color: #0c5460;'>Refund Information</h3>
+                    <p>If you were charged for this order, a refund will be processed within 3-5 business days to your original payment method.</p>
+                    <p>If you have any questions about this cancellation or your refund, please contact our customer service team.</p>
+                </div>
+
+                <p>We apologize for any inconvenience this cancellation may have caused.</p>
+
+                <p>Best regards,<br>The ProductReviews Team</p>
+
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
+                <p style='font-size: 12px; color: #6c757d;'>
+                    This is an automated notification. If you have questions, please contact customer service.
+                </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private string GenerateOrderCancellationNotificationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = order.Items?.Select(item => 
+            $@"<tr>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Product?.Name ?? "Unknown Product"}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.UnitPrice:F2}</td>
+                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.UnitPrice * item.Quantity):F2}</td>
+            </tr>").Aggregate((a, b) => a + b) ?? "";
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Order Cancellation Notification</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
+                <h2 style='color: #856404; margin-top: 0;'>Order Cancelled</h2>
+                
+                <p>An order has been cancelled.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
+                    <p><strong>Order Number:</strong> {order.OrderNumber}</p>
+                    <p><strong>Customer Email:</strong> {customerEmail}</p>
+                    <p><strong>Order Date:</strong> {order.OrderDate:MMM dd, yyyy}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Items in Cancelled Order</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${order.TotalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Action Required</h3>
+                    <p><strong>Process Refund:</strong> If payment was processed, initiate refund for ${order.TotalAmount:F2}</p>
+                    <p><strong>Update Inventory:</strong> Return cancelled items to inventory if applicable</p>
+                    <p><strong>Customer Contact:</strong> Consider reaching out to customer to understand cancellation reason</p>
+                </div>
+
+                <p>Please take appropriate action for this cancelled order.</p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    public async Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string customerEmail)
+    {
+        if (_graphServiceClient == null)
+        {
+            _logger.LogInformation("Graph client not available");
+            return;
+        }
+
+        var adminEmail = _configuration["EmailSettings:AdminEmail"];
+        if (string.IsNullOrEmpty(adminEmail))
+        {
+            _logger.LogWarning("Admin email not configured");
+            return;
+        }
+
+        try
+        {
+            var subject = "Checkout Cancelled";
+            var customerBody = GenerateCheckoutCancellationEmail(cart, customerEmail);
+            var adminBody = GenerateCheckoutCancellationNotificationEmail(cart, customerEmail);
+
+            // Send to customer
+            var customerMessage = new Message
+            {
+                Subject = subject,
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = customerBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
+                }
+            };
+
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = customerMessage
+            });
+
+            // Send to admin
+            var adminMessage = new Message
+            {
+                Subject = "Customer Cancelled Checkout",
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = adminBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
+                }
+            };
+
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = adminMessage
+            });
+
+            _logger.LogInformation("Checkout cancellation emails sent for customer {CustomerEmail}", customerEmail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send checkout cancellation emails for customer {CustomerEmail}", customerEmail);
+            throw;
+        }
+    }
+
+    private string GenerateCheckoutCancellationEmail(List<CartProduct> cart, string customerEmail)
+    {
+        var itemsHtml = cart?.Any() == true 
+            ? cart.Select(item => 
+                $@"<tr>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
+                </tr>").Aggregate((a, b) => a + b)
+            : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
+
+        var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Checkout Cancelled</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
+                <h2 style='color: #856404; margin-top: 0;'>Checkout Cancelled</h2>
+                
+                <p>Dear Customer,</p>
+                
+                <p>We noticed that you cancelled your checkout process. Don't worry - your items are still saved in your cart for when you're ready to complete your purchase.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Items in Your Cart</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${total:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
+                    <h3 style='margin-top: 0; color: #0c5460;'>Complete Your Purchase</h3>
+                    <p>Your items are waiting for you! Return to your cart anytime to complete your purchase.</p>
+                    <p>If you experienced any issues during checkout, please don't hesitate to contact our customer service team.</p>
+                </div>
+
+                <p>Thank you for considering our products!</p>
+
+                <p>Best regards,<br>The ProductReviews Team</p>
+
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
+                <p style='font-size: 12px; color: #6c757d;'>
+                    This is an automated notification. If you have questions, please contact customer service.
+                </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private string GenerateCheckoutCancellationNotificationEmail(List<CartProduct> cart, string customerEmail)
+    {
+        var itemsHtml = cart?.Any() == true 
+            ? cart.Select(item => 
+                $@"<tr>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.Name ?? "Unknown Product"}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
+                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
+                </tr>").Aggregate((a, b) => a + b)
+            : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
+
+        var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Customer Cancelled Checkout</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
+                <h2 style='color: #856404; margin-top: 0;'>Customer Cancelled Checkout</h2>
+                
+                <p>A customer cancelled their checkout process.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Customer Details</h3>
+                    <p><strong>Customer Email:</strong> {customerEmail}</p>
+                    <p><strong>Cancellation Time:</strong> {DateTime.UtcNow:MMM dd, yyyy HH:mm} UTC</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Abandoned Cart Items</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${total:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Follow-up Actions</h3>
+                    <p><strong>Consider:</strong> Sending a follow-up email with a discount code to encourage completion</p>
+                    <p><strong>Review:</strong> Check if there were any technical issues during checkout</p>
+                    <p><strong>Analytics:</strong> Track abandonment rates to identify potential improvements</p>
+                </div>
+
+                <p>Monitor checkout flow for potential improvements to reduce abandonment.</p>
             </div>
         </body>
         </html>";

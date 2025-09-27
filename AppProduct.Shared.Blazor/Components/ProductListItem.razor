@@ -1,0 +1,78 @@
+@using AppProduct.Shared.Models
+
+<MudCard Class="mud-elevation-1 mb-2">
+    <MudCardContent>
+        <MudGrid AlignItems="Center">
+            <MudItem xs="12" sm="2">
+                <MudImage Src="@(Product?.ImageUrl ?? "/images/placeholder-product.png")" 
+                         Alt="@Product?.Name"
+                         Style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;" />
+            </MudItem>
+            
+            <MudItem xs="12" sm="6">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h6">@Product?.Name</MudText>
+                    
+                    @if (Product?.ProductReview?.Any() == true)
+                    {
+                        <ProductRatingDisplay Reviews="Product.ProductReview" ShowBreakdown="false" />
+                    }
+                    
+                    <MudText Typo="Typo.body2" Color="Color.Default">
+                        @(Product?.Description?.Length > 200 ? Product.Description.Substring(0, 200) + "..." : Product?.Description)
+                    </MudText>
+                    
+                    @if (Product?.Brand?.Any() == true)
+                    {
+                        <MudText Typo="Typo.caption">
+                            Brand: @string.Join(", ", Product.Brand.Select(b => b.Name))
+                        </MudText>
+                    }
+                </MudStack>
+            </MudItem>
+            
+            <MudItem xs="12" sm="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">
+                        @Product?.Price?.ToString("C")
+                    </MudText>
+                    
+                    @if (Product?.InStock == true)
+                    {
+                        <MudChip T="string" Text="In Stock" Color="Color.Success" Size="Size.Small" />
+                    }
+                    else
+                    {
+                        <MudChip T="string" Text="Out of Stock" Color="Color.Error" Size="Size.Small" />
+                    }
+                </MudStack>
+            </MudItem>
+            
+            <MudItem xs="12" sm="2">
+                <MudStack Spacing="2">
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Visibility"
+                              FullWidth="true"
+                              Href="@($"/product/view/{Product?.Id}")">
+                        View Details
+                    </MudButton>
+                    
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                              FullWidth="true"
+                              OnClick="() => OnAddToCart.InvokeAsync(Product)"
+                              Disabled="@(Product?.InStock != true)">
+                        Add to Cart
+                    </MudButton>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public Product? Product { get; set; }
+    [Parameter] public EventCallback<Product> OnAddToCart { get; set; }
+}

@@ -1,0 +1,131 @@
+@page "/catalog"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject CartService CartService
+@inject ISnackbar Snackbar
+
+<PageTitle>Product Catalog</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Storefront" Class="mr-2" />
+        Product Catalog
+    </MudText>
+
+    <ProductSearch OnSearchResults="HandleSearchResults" OnSearching="HandleSearching" />
+
+    @if (isSearching)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mb-4" />
+    }
+
+    @if (products == null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!products.Any())
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6">No products found</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center">
+                    Try adjusting your search criteria or browse all products.
+                </MudText>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudText Typo="Typo.body1">
+                Showing @products.Length product@(products.Length != 1 ? "s" : "")
+            </MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">View:</MudText>
+                <MudToggleIconButton @bind-Toggled="isGridView"
+                                    Icon="@Icons.Material.Filled.ViewList" ToggledIcon="@Icons.Material.Filled.GridView"
+                                    Title="Toggle view" ToggledTitle="Toggle view" />
+            </MudStack>
+        </MudStack>
+
+        @if (isGridView)
+        {
+            <MudGrid Spacing="4">
+                @foreach (var product in products)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <ProductCard Product="product" OnAddToCart="AddToCart" />
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                @foreach (var product in products)
+                {
+                    <ProductListItem Product="product" OnAddToCart="AddToCart" />
+                }
+            </MudStack>
+        }
+    }
+</MudContainer>
+
+@code {
+    private Product[]? products;
+    private bool isSearching = false;
+    private bool isGridView = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            var result = await AppService.ListProductODataAsync(expand: "Category,Brand,ProductReview");
+            products = result?.Value?.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading products: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleSearchResults(Product[]? results)
+    {
+        isSearching = false;
+        products = results;
+        
+        if (results == null)
+        {
+            Snackbar.Add("Error searching products", Severity.Error);
+            await LoadProducts(); // Fallback to all products
+        }
+    }
+
+    private async Task HandleSearching()
+    {
+        isSearching = true;
+    }
+
+    private async Task AddToCart(Product product)
+    {
+        try
+        {
+            if (product.Id.HasValue)
+            {
+                await CartService.AddToCartAsync(product);
+                Snackbar.Add($"Added {product.Name} to cart", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error adding to cart: {ex.Message}", Severity.Error);
+        }
+    }
+}

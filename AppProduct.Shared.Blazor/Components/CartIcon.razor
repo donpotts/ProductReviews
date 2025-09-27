@@ -1,0 +1,214 @@
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject CartService CartService
+@inject AppService AppService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<style>
+    .cart-badge-positioned .mud-badge-content {
+        position: absolute !important;
+        top: -8px !important;
+        right: -8px !important;
+        cursor: pointer !important;
+        z-index: 1000 !important;
+    }
+</style>
+
+<MudTooltip Text="Shopping Cart">
+    @if (CartService.CartCount > 0)
+    {
+        <MudBadge Origin="Origin.CenterCenter" Content="@CartService.CartCount" Color="Color.Error" Overlap="true" 
+                  Class="cart-badge-positioned" @onclick="@(() => ToggleCartDrawer(true))" style="cursor: pointer;">
+            <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" 
+                           Color="Color.Inherit" 
+                           OnClick="@(() => ToggleCartDrawer(true))"
+                           Size="Size.Medium" />
+        </MudBadge>
+    }
+    else
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" 
+                       Color="Color.Inherit" 
+                       OnClick="@(() => ToggleCartDrawer(true))"
+                       Size="Size.Medium" />
+    }
+</MudTooltip>
+
+<MudDrawer @bind-Open="ShoppingCartDrawerOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="500px">
+    <div style="padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <MudText Typo="Typo.h6" Color="Color.Primary">Shopping Cart</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="@(() => ToggleCartDrawer(false))" />
+        </div>
+        
+        @if (CartService.CartItems?.Any() == true)
+        {
+            <div style="max-height: calc(100vh - 300px); overflow-y: auto;">
+                @foreach (var item in CartService.CartItems)
+                {
+                    <MudCard style="margin-bottom: 8px;">
+                        <MudCardContent>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <MudText Typo="Typo.body1">@item.Name</MudText>
+                                    <MudText Typo="Typo.body2">@item.Description</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">$@item.Price?.ToString("F2")</MudText>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" OnClick="@(() => UpdateQuantity(item, -1))" />
+                                    <MudText>@item.Quantity</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="@(() => UpdateQuantity(item, 1))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveItem(item))" />
+                                </div>
+                            </div>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            </div>
+            
+            <MudDivider style="margin: 16px 0;" />
+            
+            <div style="padding: 16px 0;">
+                <MudText Typo="Typo.h6" style="margin-bottom: 8px;">Order Summary</MudText>
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <MudText>Subtotal:</MudText>
+                    <MudText>$@subtotal.ToString("F2")</MudText>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <MudText>Tax (8.75%):</MudText>
+                    <MudText>$@tax.ToString("F2")</MudText>
+                </div>
+                
+                <MudDivider style="margin: 12px 0;" />
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                    <MudText Typo="Typo.h6">Total:</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">$@total.ToString("F2")</MudText>
+                </div>
+                
+                <MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Primary" style="margin-bottom: 8px;" OnClick="@HandleCheckout" Disabled="@IsBusy">
+                    @if (IsBusy)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <span style="margin-left: 8px;">Processing...</span>
+                    }
+                    else
+                    {
+                        <span>Checkout</span>
+                    }
+                </MudButton>
+                <MudButton FullWidth="true" Variant="Variant.Outlined" OnClick="@(() => ToggleCartDrawer(false))">
+                    Continue Shopping
+                </MudButton>
+            </div>
+        }
+        else
+        {
+            <div style="text-align: center; padding: 32px 0;">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Style="font-size: 64px; color: #666; margin-bottom: 16px;" />
+                <MudText Typo="Typo.h6" style="margin-bottom: 8px;">Your cart is empty</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" style="margin-bottom: 16px;">Add some products to get started!</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => ToggleCartDrawer(false))">
+                    Browse Products
+                </MudButton>
+            </div>
+        }
+    </div>
+</MudDrawer>
+
+@code {
+    private bool ShoppingCartDrawerOpen { get; set; } = false;
+    private bool IsBusy { get; set; } = false;
+
+    // Order calculations
+    private decimal subtotal => CartService.CartItems?.Sum(x => (x.Price ?? 0) * x.Quantity) ?? 0;
+    private decimal tax => Math.Round(subtotal * 0.0875m, 2);
+    private decimal total => subtotal + tax;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CartService.CartChanged += OnCartChanged;
+        await CartService.InitializeAsync();
+    }
+
+    private void OnCartChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleCartDrawer(bool open)
+    {
+        ShoppingCartDrawerOpen = open;
+        StateHasChanged();
+    }
+
+    private async Task RemoveItem(CartProduct item)
+    {
+        if (item.Id.HasValue)
+        {
+            await CartService.RemoveFromCartAsync(item.Id.Value);
+            Snackbar.Add($"{item.Name} removed from cart.", Severity.Normal);
+        }
+    }
+
+    private async Task UpdateQuantity(CartProduct item, int delta)
+    {
+        if (item.Id.HasValue)
+        {
+            await CartService.UpdateQuantityAsync(item.Id.Value, delta);
+        }
+    }
+
+    private async Task HandleCheckout()
+    {
+        try
+        {
+            IsBusy = true;
+
+            var cartProducts = CartService.CartItems?.Select(x => new CartProduct
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Description = x.Description ?? "No description provided",
+                Price = x.Price >= 1 ? x.Price : 1,
+                Quantity = x.Quantity >= 1 ? x.Quantity : 1
+            }).ToList();
+
+            if (cartProducts == null || !cartProducts.Any())
+            {
+                Snackbar.Add("Cart is empty.", Severity.Error);
+                return;
+            }
+
+            var result = await AppService.CreateCheckoutSessionAsync(cartProducts);
+
+            if (!string.IsNullOrEmpty(result.ErrorMessage))
+            {
+                Snackbar.Add(result.ErrorMessage, Severity.Error);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(result.Url))
+            {
+                Navigation.NavigateTo(result.Url, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error during checkout: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        CartService.CartChanged -= OnCartChanged;
+    }
+}

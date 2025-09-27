@@ -15,6 +15,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ProductReview> ProductReview => Set<ProductReview>();
     public DbSet<Tag> Tag => Set<Tag>();
     public DbSet<Notification> Notification => Set<Notification>();
+    public DbSet<ShoppingCart> ShoppingCart => Set<ShoppingCart>();
+    public DbSet<ShoppingCartItem> ShoppingCartItem => Set<ShoppingCartItem>();
+    public DbSet<Order> Order => Set<Order>();
+    public DbSet<OrderItem> OrderItem => Set<OrderItem>();
+    public DbSet<TaxRate> TaxRate => Set<TaxRate>();
+    public DbSet<Address> Address => Set<Address>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,5 +48,63 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(x => x.Product);
         modelBuilder.Entity<Tag>()
             .HasMany(x => x.Product);
+
+        // Shopping Cart configuration
+        modelBuilder.Entity<ShoppingCart>()
+            .HasMany(x => x.Items)
+            .WithOne(x => x.ShoppingCart)
+            .HasForeignKey(x => x.ShoppingCartId);
+
+        modelBuilder.Entity<ShoppingCartItem>()
+            .Property(e => e.UnitPrice)
+            .HasPrecision(19, 4);
+
+        // Order configuration
+        modelBuilder.Entity<Order>()
+            .HasMany(x => x.Items)
+            .WithOne(x => x.Order)
+            .HasForeignKey(x => x.OrderId);
+
+        modelBuilder.Entity<Order>()
+            .Property(e => e.Subtotal)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<Order>()
+            .Property(e => e.TaxAmount)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<Order>()
+            .Property(e => e.ShippingAmount)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<Order>()
+            .Property(e => e.TotalAmount)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<OrderItem>()
+            .Property(e => e.UnitPrice)
+            .HasPrecision(19, 4);
+
+        modelBuilder.Entity<OrderItem>()
+            .Property(e => e.TotalPrice)
+            .HasPrecision(19, 4);
+
+        // Tax Rate configuration
+        modelBuilder.Entity<TaxRate>()
+            .Property(e => e.StateTaxRate)
+            .HasPrecision(10, 4);
+
+        modelBuilder.Entity<TaxRate>()
+            .Property(e => e.LocalTaxRate)
+            .HasPrecision(10, 4);
+
+        modelBuilder.Entity<TaxRate>()
+            .Property(e => e.CombinedTaxRate)
+            .HasPrecision(10, 4);
+
+        // Product additional fields
+        modelBuilder.Entity<Product>()
+            .Property(e => e.Weight)
+            .HasPrecision(10, 2);
     }
 }

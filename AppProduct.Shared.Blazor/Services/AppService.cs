@@ -985,4 +985,273 @@ public class AppService(
         await HandleResponseErrorsAsync(response);
         return await response.Content.ReadFromJsonAsync<object>();
     }
+
+    // Shopping Cart Methods
+    public async Task<ShoppingCart?> GetShoppingCartAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/shoppingcart");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<ShoppingCart>();
+    }
+
+    public async Task<ShoppingCart?> AddToCartAsync(long productId, int quantity = 1)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new { ProductId = productId, Quantity = quantity };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/shoppingcart/add-item");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<ShoppingCart>();
+    }
+
+    public async Task<ShoppingCart?> UpdateCartItemAsync(long itemId, int quantity)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new { Quantity = quantity };
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/shoppingcart/update-item/{itemId}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<ShoppingCart>();
+    }
+
+    public async Task<ShoppingCart?> RemoveFromCartAsync(long itemId)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/shoppingcart/remove-item/{itemId}");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<ShoppingCart>();
+    }
+
+    public async Task<ShoppingCart?> ClearCartAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Delete, "/api/shoppingcart/clear");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<ShoppingCart>();
+    }
+
+    // Product Search Methods
+    public async Task<Product[]?> SearchProductsAsync(string? query = null, long? categoryId = null, long? brandId = null, 
+        decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        
+        var queryString = HttpUtility.ParseQueryString(string.Empty);
+        if (!string.IsNullOrEmpty(query)) queryString.Add("query", query);
+        if (categoryId.HasValue) queryString.Add("categoryId", categoryId.ToString());
+        if (brandId.HasValue) queryString.Add("brandId", brandId.ToString());
+        if (minPrice.HasValue) queryString.Add("minPrice", minPrice.ToString());
+        if (maxPrice.HasValue) queryString.Add("maxPrice", maxPrice.ToString());
+        if (inStock.HasValue) queryString.Add("inStock", inStock.ToString());
+        
+        var uri = $"/api/product/search?{queryString}";
+        HttpRequestMessage request = new(HttpMethod.Get, uri);
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Product[]>();
+    }
+
+    // Order Methods
+    public Task<ODataResult<Order>?> ListOrderODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return GetODataAsync<Order>("Order", top, skip, orderby, filter, count, expand);
+    }
+
+    public async Task<Order?> GetOrderByIdAsync(long key)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/order/{key}");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Order>();
+    }
+
+    public async Task<Order?> CreateOrderFromCartAsync(string shippingAddress, string billingAddress, 
+        string billingStateCode, decimal? shippingAmount = null, PaymentMethod paymentMethod = PaymentMethod.CreditCard, 
+        string? notes = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new 
+        { 
+            ShippingAddress = shippingAddress,
+            BillingAddress = billingAddress,
+            BillingStateCode = billingStateCode,
+            ShippingAmount = shippingAmount,
+            PaymentMethod = paymentMethod,
+            Notes = notes
+        };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/order/create-from-cart");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Order>();
+    }
+
+    public async Task<Order?> CancelOrderAsync(long orderId)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/order/{orderId}/cancel");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Order>();
+    }
+
+    // Tax Methods
+    public async Task<TaxCalculationResult?> CalculateTaxAsync(decimal subtotal, string stateCode)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new TaxCalculationRequest { Subtotal = subtotal, StateCode = stateCode };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/taxrate/calculate");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<TaxCalculationResult>();
+    }
+
+    public async Task<TaxRate[]?> GetTaxRatesAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/taxrate");
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<TaxRate[]>();
+    }
+
+    // Payment Methods
+    public async Task<CreateStripeSessionResponse?> CreateStripeSessionAsync(string baseUrl, string? shippingAddress = null, 
+        string? billingAddress = null, string? billingStateCode = null, decimal shippingAmount = 0, string? notes = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new CreateStripeSessionRequest
+        { 
+            BaseUrl = baseUrl,
+            ShippingAddress = shippingAddress,
+            BillingAddress = billingAddress,
+            BillingStateCode = billingStateCode,
+            ShippingAmount = shippingAmount,
+            Notes = notes
+        };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/create-stripe-session");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<CreateStripeSessionResponse>();
+    }
+
+    public async Task<Order?> ConfirmPaymentAsync(PaymentMethod paymentMethod, string? stripeSessionId = null, 
+        string? shippingAddress = null, string? billingAddress = null, string billingStateCode = "", 
+        decimal? shippingAmount = null, string? notes = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new 
+        { 
+            PaymentMethod = paymentMethod,
+            StripeSessionId = stripeSessionId,
+            ShippingAddress = shippingAddress,
+            BillingAddress = billingAddress,
+            BillingStateCode = billingStateCode,
+            ShippingAmount = shippingAmount,
+            Notes = notes
+        };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/confirm-payment");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Order>();
+    }
+
+    // Stripe Checkout Methods
+    public async Task<(string? SessionId, string? Url, string? SuccessUrl, string? CancelUrl, string? ErrorMessage)> CreateCheckoutSessionAsync(List<CartProduct> cart)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/checkout");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(cart);
+
+        var response = await httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            return (null, null, null, null, errorMessage);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+
+        return (
+            result?["sessionId"],
+            result?["url"],
+            result?["successUrl"],
+            result?["cancelUrl"],
+            null
+        );
+    }
+
+    // Email Methods
+    public async Task SendOrderConfirmationEmailAsync(long orderId, string customerEmail)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/email/order-confirmation/{orderId}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(new { CustomerEmail = customerEmail });
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string? sessionId = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/email/checkout-cancellation");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(new { Cart = cart, SessionId = sessionId });
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    public async Task SendOrderCancellationEmailAsync(long orderId)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/email/order-cancellation/{orderId}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
 }

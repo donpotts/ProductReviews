@@ -1,0 +1,74 @@
+@page "/checkout/cancel"
+@using AppProduct.Shared.Blazor.Services
+@inject NavigationManager Navigation
+@inject AppService AppService
+@inject CartService CartService
+@inject ISnackbar Snackbar
+
+<PageTitle>Payment Cancelled</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Class="pa-8" Elevation="2">
+        <MudStack AlignItems="AlignItems.Center" Spacing="4">
+            <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Large" Color="Color.Warning" />
+            <MudText Typo="Typo.h5">Payment Cancelled</MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">
+                Your payment was cancelled. Your items are still in your cart.
+            </MudText>
+            
+            <MudStack Direction="Row" Spacing="3">
+                <MudButton Variant="Variant.Filled" 
+                          Color="Color.Primary" 
+                          StartIcon="@Icons.Material.Filled.ShoppingCart"
+                          Href="/checkout">
+                    Return to Checkout
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" 
+                          Color="Color.Primary" 
+                          StartIcon="@Icons.Material.Filled.ShoppingBag"
+                          Href="/catalog">
+                    Continue Shopping
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "session_id")]
+    public string? SessionId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Try to send cancellation notification with current cart items
+            var cartItems = CartService.CartItems?.ToList() ?? new List<CartProduct>();
+            
+            Console.WriteLine($"CheckoutCancel - Cart items: {cartItems.Count}, SessionId: {SessionId}");
+            
+            // Only send email if we have cart items or session info
+            if (cartItems.Any() || !string.IsNullOrEmpty(SessionId))
+            {
+                Console.WriteLine("Sending cancellation email...");
+                await AppService.SendCheckoutCancellationEmailAsync(cartItems, SessionId);
+                Console.WriteLine("Cancellation email sent successfully");
+            }
+            else
+            {
+                Console.WriteLine("No cart items or session ID - skipping cancellation email");
+            }
+            
+            Snackbar.Add("Payment cancelled.", Severity.Warning, config =>
+            {
+                config.VisibleStateDuration = 1000;
+            });
+        }
+        catch (Exception ex)
+        {
+            // Don't show error to user for email notification failure
+            Console.WriteLine($"Failed to send cancellation notification: {ex}");
+        }
+    }
+}

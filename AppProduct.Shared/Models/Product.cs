@@ -37,6 +37,18 @@ public class Product
     public bool InStock { get; set; }
 
     [DataMember]
+    public int? StockQuantity { get; set; }
+
+    [DataMember]
+    public int? ReorderLevel { get; set; }
+
+    [DataMember]
+    public decimal? Weight { get; set; }
+
+    [DataMember]
+    public string? SKU { get; set; }
+
+    [DataMember]
     public DateTime? ReleaseDate { get; set; }
 
     [DataMember]

@@ -215,6 +215,61 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("search")]
+    [EnableQuery]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public ActionResult<IQueryable<Product>> Search([FromQuery] string? query, [FromQuery] long? categoryId, [FromQuery] long? brandId, 
+        [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] bool? inStock)
+    {
+        var products = ctx.Product
+            .Include(x => x.Category)
+            .Include(x => x.Brand)
+            .Include(x => x.Feature)
+            .Include(x => x.Tag)
+            .Include(x => x.ProductReview)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var searchTerm = query.ToLower();
+            products = products.Where(p => 
+                (p.Name != null && p.Name.ToLower().Contains(searchTerm)) ||
+                (p.Description != null && p.Description.ToLower().Contains(searchTerm)) ||
+                (p.DetailedSpecs != null && p.DetailedSpecs.ToLower().Contains(searchTerm)) ||
+                (p.SKU != null && p.SKU.ToLower().Contains(searchTerm))
+            );
+        }
+
+        if (categoryId.HasValue)
+        {
+            products = products.Where(p => p.Category != null && p.Category.Any(c => c.Id == categoryId.Value));
+        }
+
+        if (brandId.HasValue)
+        {
+            products = products.Where(p => p.Brand != null && p.Brand.Any(b => b.Id == brandId.Value));
+        }
+
+        if (minPrice.HasValue)
+        {
+            products = products.Where(p => p.Price >= minPrice.Value);
+        }
+
+        if (maxPrice.HasValue)
+        {
+            products = products.Where(p => p.Price <= maxPrice.Value);
+        }
+
+        if (inStock.HasValue)
+        {
+            products = products.Where(p => p.InStock == inStock.Value);
+        }
+
+        return Ok(products);
+    }
+
     [HttpPost("bulk-upsert")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

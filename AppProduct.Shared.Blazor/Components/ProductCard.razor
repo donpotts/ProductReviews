@@ -1,0 +1,61 @@
+@using AppProduct.Shared.Models
+
+<MudCard Class="mud-elevation-2" Style="height: 100%; display: flex; flex-direction: column;">
+    <MudCardMedia Image="@(Product?.ImageUrl ?? "/images/placeholder-product.png")" 
+                  Height="200" 
+                  Style="background-size: cover; background-position: center;" />
+    
+    <MudCardContent Style="flex-grow: 1; display: flex; flex-direction: column;">
+        <MudText Typo="Typo.h6" Class="mb-2">@Product?.Name</MudText>
+        
+        @if (Product?.ProductReview?.Any() == true)
+        {
+            <div class="mb-2">
+                <ProductRatingDisplay Reviews="Product.ProductReview" ShowBreakdown="false" />
+            </div>
+        }
+        
+        <MudText Typo="Typo.body2" Class="mb-2" Style="flex-grow: 1;">
+            @(Product?.Description?.Length > 100 ? Product.Description.Substring(0, 100) + "..." : Product?.Description)
+        </MudText>
+        
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-auto">
+            <MudText Typo="Typo.h6" Color="Color.Primary">
+                @Product?.Price?.ToString("C")
+            </MudText>
+            
+            @if (Product?.InStock == true)
+            {
+                <MudChip T="string" Text="In Stock" Color="Color.Success" Size="Size.Small" />
+            }
+            else
+            {
+                <MudChip T="string" Text="Out of Stock" Color="Color.Error" Size="Size.Small" />
+            }
+        </MudStack>
+    </MudCardContent>
+    
+    <MudCardActions>
+        <MudButton Variant="Variant.Text" 
+                  Color="Color.Primary" 
+                  StartIcon="@Icons.Material.Filled.Visibility"
+                  Href="@($"/product/view/{Product?.Id}")">
+            View Details
+        </MudButton>
+        
+        <MudSpacer />
+        
+        <MudButton Variant="Variant.Filled" 
+                  Color="Color.Primary" 
+                  StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                  OnClick="() => OnAddToCart.InvokeAsync(Product)"
+                  Disabled="@(Product?.InStock != true)">
+            Add to Cart
+        </MudButton>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    [Parameter] public Product? Product { get; set; }
+    [Parameter] public EventCallback<Product> OnAddToCart { get; set; }
+}

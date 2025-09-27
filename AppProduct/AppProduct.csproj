@@ -23,6 +23,8 @@
     <!-- Microsoft Graph API for email notifications -->
     <PackageReference Include="Microsoft.Graph" Version="5.89.0" />
     <PackageReference Include="Azure.Identity" Version="1.14.1" />
+    <!-- Stripe for payment processing -->
+    <PackageReference Include="Stripe.net" Version="46.4.0" />
   </ItemGroup>
 
   <ItemGroup>

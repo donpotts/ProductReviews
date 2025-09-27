@@ -1,0 +1,98 @@
+@page "/checkout/success"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject CartService CartService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Payment Successful</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    @if (isLoading)
+    {
+        <MudStack AlignItems="AlignItems.Center" Spacing="4" Class="pa-8">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+            <MudText Typo="Typo.h6">Processing your payment...</MudText>
+        </MudStack>
+    }
+    else if (order != null)
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+                <MudText Typo="Typo.h4" Color="Color.Success">Payment Successful!</MudText>
+                <MudText Typo="Typo.h6">Order #@order.OrderNumber</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-4">
+                    Thank you for your order! You will receive a confirmation email shortly.
+                </MudText>
+                
+                <MudStack Direction="Row" Spacing="3">
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Receipt"
+                              Href="@($"/order/{order.Id}")">
+                        View Order Details
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.ShoppingBag"
+                              Href="/catalog">
+                        Continue Shopping
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.Error" Size="Size.Large" Color="Color.Error" />
+                <MudText Typo="Typo.h6">Unable to process payment</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center">
+                    There was an issue processing your payment. Please contact support if you were charged.
+                </MudText>
+                <MudButton Variant="Variant.Filled" 
+                          Color="Color.Primary" 
+                          Href="/checkout">
+                    Try Again
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "session_id")]
+    public string? SessionId { get; set; }
+
+    private Order? order;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(SessionId))
+        {
+            try
+            {
+                // Confirm the payment with the session ID
+                order = await AppService.ConfirmPaymentAsync(PaymentMethod.CreditCard, SessionId);
+                
+                if (order != null)
+                {
+                    Snackbar.Add($"Order #{order.OrderNumber} created successfully!", Severity.Success);
+                    await CartService.ClearCartAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
+            }
+        }
+        
+        isLoading = false;
+    }
+}

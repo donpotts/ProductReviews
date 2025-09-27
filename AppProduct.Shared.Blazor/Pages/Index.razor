@@ -53,13 +53,43 @@
                                 <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
                                     <MudCardContent Class="pa-4">
                                         <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Color="Color.Tertiary" />
+                                            <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Large" Color="Color.Tertiary" />
+                                            <MudText Typo="Typo.subtitle1" Align="Align.Center">Shopping Catalog</MudText>
+                                            <MudText Typo="Typo.body2" Align="Align.Center">Browse products and add them to your cart for purchase</MudText>
+                                        </MudStack>
+                                    </MudCardContent>
+                                    <MudCardActions Class="justify-center">
+                                        <MudButton Href="/catalog" Color="Color.Tertiary" Variant="Variant.Filled">Shop Products</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                            
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
+                                    <MudCardContent Class="pa-4">
+                                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Warning" />
+                                            <MudText Typo="Typo.subtitle1" Align="Align.Center">Shopping Cart</MudText>
+                                            <MudText Typo="Typo.body2" Align="Align.Center">Manage your shopping cart and checkout</MudText>
+                                        </MudStack>
+                                    </MudCardContent>
+                                    <MudCardActions Class="justify-center">
+                                        <MudButton Href="/cart" Color="Color.Warning" Variant="Variant.Filled">View Cart</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                            
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCard Class="mud-elevation-2 rounded-lg" Style="height: 100%;">
+                                    <MudCardContent Class="pa-4">
+                                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" Color="Color.Info" />
                                             <MudText Typo="Typo.subtitle1" Align="Align.Center">AI Product Chat</MudText>
                                             <MudText Typo="Typo.body2" Align="Align.Center">Get intelligent insights about your products</MudText>
                                         </MudStack>
                                     </MudCardContent>
                                     <MudCardActions Class="justify-center">
-                                        <MudButton Href="/productchat" Color="Color.Tertiary" Variant="Variant.Filled">Start Chat</MudButton>
+                                        <MudButton Href="/productchat" Color="Color.Info" Variant="Variant.Filled">Start Chat</MudButton>
                                     </MudCardActions>
                                 </MudCard>
                             </MudItem>
@@ -112,6 +142,30 @@
                                         <div>
                                             <MudText Typo="Typo.subtitle1">Secure Identity</MudText>
                                             <MudText Typo="Typo.body2">ASP.NET Core Identity with role-based authorization and user management</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                            
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Medium" Color="Color.Success" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">E-Commerce Ready</MudText>
+                                            <MudText Typo="Typo.body2">Complete shopping cart, checkout, and order management with Stripe integration</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                            
+                            <MudItem xs="12" md="6">
+                                <MudPaper Class="pa-4 mud-elevation-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                        <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Medium" Color="Color.Warning" />
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1">Tax Calculation</MudText>
+                                            <MudText Typo="Typo.body2">Automatic tax calculation for all US states with accurate rate tables</MudText>
                                         </div>
                                     </MudStack>
                                 </MudPaper>

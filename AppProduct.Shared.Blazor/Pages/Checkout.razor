@@ -1,0 +1,460 @@
+@page "/checkout"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Checkout</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Payment" Class="mr-2" />
+        Checkout
+    </MudText>
+
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (cart == null || cart.Items == null || !cart.Items.Any())
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Large" Color="Color.Warning" />
+                <MudText Typo="Typo.h6">Your cart is empty</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/catalog">
+                    Browse Products
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="8">
+                <MudStack Spacing="4">
+                    <!-- Shipping Address -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Shipping Address</MudText>
+                        <MudGrid Spacing="3">
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="shippingAddress.FirstName" Label="First Name" Variant="Variant.Outlined" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="shippingAddress.LastName" Label="Last Name" Variant="Variant.Outlined" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="shippingAddress.AddressLine1" Label="Address Line 1" Variant="Variant.Outlined" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="shippingAddress.AddressLine2" Label="Address Line 2 (Optional)" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="shippingAddress.City" Label="City" Variant="Variant.Outlined" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudSelect Value="@shippingAddress.State" Label="State" Variant="Variant.Outlined" Required="true" ValueChanged="@(async (string? value) => await OnStateChanged(value))">
+                                    @foreach (var state in GetStates())
+                                    {
+                                        <MudSelectItem Value="@state.Code">@state.Name (@state.Code)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="shippingAddress.PostalCode" Label="ZIP Code" Variant="Variant.Outlined" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="shippingAddress.Phone" Label="Phone Number" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="shippingAddress.Email" Label="Email Address" Variant="Variant.Outlined" Required="true" InputType="InputType.Email" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+
+                    <!-- Billing Address -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+                            <MudText Typo="Typo.h6">Billing Address</MudText>
+                            <MudCheckBox Value="@sameAsShipping" Label="Same as shipping address" ValueChanged="@(async (bool value) => await OnSameAsShippingChanged(value))" />
+                        </MudStack>
+                        
+                        @if (!sameAsShipping)
+                        {
+                            <MudGrid Spacing="3">
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="billingAddress.FirstName" Label="First Name" Variant="Variant.Outlined" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="billingAddress.LastName" Label="Last Name" Variant="Variant.Outlined" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="billingAddress.AddressLine1" Label="Address Line 1" Variant="Variant.Outlined" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="billingAddress.AddressLine2" Label="Address Line 2 (Optional)" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="billingAddress.City" Label="City" Variant="Variant.Outlined" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudSelect Value="@billingAddress.State" Label="State" Variant="Variant.Outlined" Required="true" ValueChanged="@(async (string? value) => await OnBillingStateChanged(value))">
+                                        @foreach (var state in GetStates())
+                                        {
+                                            <MudSelectItem Value="@state.Code">@state.Name (@state.Code)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudTextField @bind-Value="billingAddress.PostalCode" Label="ZIP Code" Variant="Variant.Outlined" Required="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="billingAddress.Phone" Label="Phone Number" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField @bind-Value="billingAddress.Email" Label="Email Address" Variant="Variant.Outlined" Required="true" InputType="InputType.Email" />
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+
+                    <!-- Payment Method -->
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-3">Payment Method</MudText>
+                        <MudRadioGroup @bind-Value="selectedPaymentMethod">
+                            <MudStack Spacing="2">
+                                <MudRadio Value="PaymentMethod.CreditCard" Color="Color.Primary">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.CreditCard" />
+                                        <MudText>Credit Card (Stripe)</MudText>
+                                    </MudStack>
+                                </MudRadio>
+                                <MudRadio Value="PaymentMethod.PurchaseOrder" Color="Color.Primary">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Receipt" />
+                                        <MudText>Purchase Order</MudText>
+                                    </MudStack>
+                                </MudRadio>
+                                <MudRadio Value="PaymentMethod.Cash" Color="Color.Primary">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.AttachMoney" />
+                                        <MudText>Cash</MudText>
+                                    </MudStack>
+                                </MudRadio>
+                            </MudStack>
+                        </MudRadioGroup>
+
+                        @if (selectedPaymentMethod == PaymentMethod.PurchaseOrder)
+                        {
+                            <MudTextField @bind-Value="notes" 
+                                         Label="Purchase Order Details" 
+                                         Variant="Variant.Outlined"
+                                         Lines="3"
+                                         Class="mt-4"
+                                         HelperText="Please provide your PO number and any additional details" />
+                        }
+                        else if (selectedPaymentMethod == PaymentMethod.Cash)
+                        {
+                            <MudAlert Severity="Severity.Info" Class="mt-4">
+                                Your order will be processed for cash payment. You can arrange payment upon delivery or pickup.
+                            </MudAlert>
+                        }
+                    </MudPaper>
+                </MudStack>
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="2" Style="position: sticky; top: 20px;">
+                    <MudText Typo="Typo.h6" Class="mb-4">Order Summary</MudText>
+                    
+                    <!-- Order Items -->
+                    <MudStack Spacing="2" Class="mb-4">
+                        @foreach (var item in cart.Items)
+                        {
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.body2">@item.Product?.Name (×@item.Quantity)</MudText>
+                                <MudText Typo="Typo.body2">@(((item.UnitPrice ?? 0) * item.Quantity).ToString("C"))</MudText>
+                            </MudStack>
+                        }
+                    </MudStack>
+
+                    <MudDivider Class="my-3" />
+
+                    <!-- Totals -->
+                    <MudStack Spacing="2">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body1">Subtotal</MudText>
+                            <MudText Typo="Typo.body1">@subtotal.ToString("C")</MudText>
+                        </MudStack>
+                        
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.body1">Shipping</MudText>
+                            <MudText Typo="Typo.body1">@shippingAmount.ToString("C")</MudText>
+                        </MudStack>
+                        
+                        @if (taxAmount > 0)
+                        {
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.body1">Tax (@GetBillingState())</MudText>
+                                <MudText Typo="Typo.body1">@taxAmount.ToString("C")</MudText>
+                            </MudStack>
+                        }
+                        
+                        <MudDivider />
+                        
+                        <MudStack Row="true" Justify="Justify.SpaceBetween">
+                            <MudText Typo="Typo.h6">Total</MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Primary">@total.ToString("C")</MudText>
+                        </MudStack>
+                    </MudStack>
+
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              FullWidth="true" 
+                              Class="mt-4"
+                              StartIcon="@Icons.Material.Filled.ShoppingCartCheckout"
+                              OnClick="PlaceOrder"
+                              Disabled="@(!IsFormValid() || isProcessing)">
+                        @if (isProcessing)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                            <span class="ml-2">Processing...</span>
+                        }
+                        else
+                        {
+                            <span>Place Order</span>
+                        }
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private AppProduct.Shared.Models.ShoppingCart? cart;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private bool sameAsShipping = true;
+    
+    private Address shippingAddress = new();
+    private Address billingAddress = new();
+    private PaymentMethod selectedPaymentMethod = PaymentMethod.CreditCard;
+    private string? notes;
+    
+    private decimal subtotal => cart?.Items?.Sum(x => (x.UnitPrice ?? 0) * x.Quantity) ?? 0;
+    private decimal shippingAmount = 10.00m; // Fixed shipping for now
+    private decimal taxAmount = 0;
+    private decimal total => subtotal + shippingAmount + taxAmount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCart();
+        // Don't calculate tax on init since no state is selected yet
+    }
+
+    private async Task LoadCart()
+    {
+        try
+        {
+            isLoading = true;
+            cart = await AppService.GetShoppingCartAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading cart: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CalculateTax()
+    {
+        try
+        {
+            var stateCode = GetBillingState();
+            if (!string.IsNullOrEmpty(stateCode) && subtotal > 0)
+            {
+                var taxResult = await AppService.CalculateTaxAsync(subtotal, stateCode);
+                taxAmount = taxResult?.TaxAmount ?? 0;
+                Console.WriteLine($"Tax calculated for {stateCode}: {taxAmount:C} on subtotal {subtotal:C}");
+            }
+            else
+            {
+                taxAmount = 0;
+                Console.WriteLine($"No tax calculated - StateCode: '{stateCode}', Subtotal: {subtotal:C}");
+            }
+        }
+        catch (Exception ex)
+        {
+            taxAmount = 0;
+            Console.WriteLine($"Tax calculation error: {ex.Message}");
+            Snackbar.Add($"Error calculating tax: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private string GetBillingState()
+    {
+        return sameAsShipping ? shippingAddress.State ?? "" : billingAddress.State ?? "";
+    }
+
+    private bool IsFormValid()
+    {
+        var shipping = shippingAddress;
+        var billing = sameAsShipping ? shippingAddress : billingAddress;
+        
+        return !string.IsNullOrWhiteSpace(shipping.FirstName) &&
+               !string.IsNullOrWhiteSpace(shipping.LastName) &&
+               !string.IsNullOrWhiteSpace(shipping.AddressLine1) &&
+               !string.IsNullOrWhiteSpace(shipping.City) &&
+               !string.IsNullOrWhiteSpace(shipping.State) &&
+               !string.IsNullOrWhiteSpace(shipping.PostalCode) &&
+               !string.IsNullOrWhiteSpace(shipping.Email) &&
+               !string.IsNullOrWhiteSpace(billing.FirstName) &&
+               !string.IsNullOrWhiteSpace(billing.LastName) &&
+               !string.IsNullOrWhiteSpace(billing.AddressLine1) &&
+               !string.IsNullOrWhiteSpace(billing.City) &&
+               !string.IsNullOrWhiteSpace(billing.State) &&
+               !string.IsNullOrWhiteSpace(billing.PostalCode) &&
+               !string.IsNullOrWhiteSpace(billing.Email);
+    }
+
+    private async Task PlaceOrder()
+    {
+        try
+        {
+            isProcessing = true;
+            
+            var shipping = FormatAddress(shippingAddress);
+            var billing = FormatAddress(sameAsShipping ? shippingAddress : billingAddress);
+
+            if (selectedPaymentMethod == PaymentMethod.CreditCard)
+            {
+                // Redirect to Stripe Checkout
+                var baseUrl = Navigation.BaseUri.TrimEnd('/');
+                // Ensure we have a valid base URL
+                if (string.IsNullOrEmpty(baseUrl) || (!baseUrl.StartsWith("http://") && !baseUrl.StartsWith("https://")))
+                {
+                    baseUrl = "http://localhost:5000"; // Fallback for development
+                }
+                var sessionResponse = await AppService.CreateStripeSessionAsync(baseUrl, shipping, billing, GetBillingState(), shippingAmount, notes);
+                
+                // Redirect to Stripe Checkout URL
+                if (sessionResponse?.Url != null)
+                {
+                    Navigation.NavigateTo(sessionResponse.Url, forceLoad: true);
+                }
+                else
+                {
+                    throw new Exception("Failed to create payment session");
+                }
+            }
+            else
+            {
+                // Process non-credit card orders directly
+                var order = await AppService.ConfirmPaymentAsync(selectedPaymentMethod, null, shipping, billing, GetBillingState(), shippingAmount, notes);
+                
+                if (order?.Id.HasValue == true)
+                {
+                    // Send email notification for cash orders
+                    try
+                    {
+                        var customerEmail = sameAsShipping ? shippingAddress.Email : billingAddress.Email;
+                        if (!string.IsNullOrEmpty(customerEmail))
+                        {
+                            await AppService.SendOrderConfirmationEmailAsync(order.Id.Value, customerEmail);
+                        }
+                    }
+                    catch (Exception emailEx)
+                    {
+                        Console.WriteLine($"Failed to send email notification: {emailEx.Message}");
+                        // Don't fail the order if email fails
+                    }
+                    
+                    // Redirect to success page instead of non-existent confirmation page
+                    Navigation.NavigateTo("/checkout/success");
+                }
+                else
+                {
+                    throw new Exception("Failed to create order");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error placing order: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private static string FormatAddress(Address address)
+    {
+        return $"{address.FirstName} {address.LastName}\n{address.AddressLine1}\n" +
+               $"{(string.IsNullOrEmpty(address.AddressLine2) ? "" : $"{address.AddressLine2}\n")}" +
+               $"{address.City}, {address.State} {address.PostalCode}";
+    }
+
+
+    private static List<(string Name, string Code)> GetStates()
+    {
+        return new List<(string, string)>
+        {
+            ("Alabama", "AL"), ("Alaska", "AK"), ("Arizona", "AZ"), ("Arkansas", "AR"), ("California", "CA"),
+            ("Colorado", "CO"), ("Connecticut", "CT"), ("Delaware", "DE"), ("Florida", "FL"), ("Georgia", "GA"),
+            ("Hawaii", "HI"), ("Idaho", "ID"), ("Illinois", "IL"), ("Indiana", "IN"), ("Iowa", "IA"),
+            ("Kansas", "KS"), ("Kentucky", "KY"), ("Louisiana", "LA"), ("Maine", "ME"), ("Maryland", "MD"),
+            ("Massachusetts", "MA"), ("Michigan", "MI"), ("Minnesota", "MN"), ("Mississippi", "MS"), ("Missouri", "MO"),
+            ("Montana", "MT"), ("Nebraska", "NE"), ("Nevada", "NV"), ("New Hampshire", "NH"), ("New Jersey", "NJ"),
+            ("New Mexico", "NM"), ("New York", "NY"), ("North Carolina", "NC"), ("North Dakota", "ND"), ("Ohio", "OH"),
+            ("Oklahoma", "OK"), ("Oregon", "OR"), ("Pennsylvania", "PA"), ("Rhode Island", "RI"), ("South Carolina", "SC"),
+            ("South Dakota", "SD"), ("Tennessee", "TN"), ("Texas", "TX"), ("Utah", "UT"), ("Vermont", "VT"),
+            ("Virginia", "VA"), ("Washington", "WA"), ("West Virginia", "WV"), ("Wisconsin", "WI"), ("Wyoming", "WY")
+        };
+    }
+
+    private async Task OnStateChanged(string? newState)
+    {
+        shippingAddress.State = newState;
+        if (sameAsShipping)
+        {
+            await CalculateTax();
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnBillingStateChanged(string? newState)
+    {
+        billingAddress.State = newState;
+        if (!sameAsShipping)
+        {
+            await CalculateTax();
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSameAsShippingChanged(bool value)
+    {
+        sameAsShipping = value;
+        if (sameAsShipping)
+        {
+            // Copy shipping address to billing
+            billingAddress.FirstName = shippingAddress.FirstName;
+            billingAddress.LastName = shippingAddress.LastName;
+            billingAddress.AddressLine1 = shippingAddress.AddressLine1;
+            billingAddress.AddressLine2 = shippingAddress.AddressLine2;
+            billingAddress.City = shippingAddress.City;
+            billingAddress.State = shippingAddress.State;
+            billingAddress.PostalCode = shippingAddress.PostalCode;
+            billingAddress.Phone = shippingAddress.Phone;
+            billingAddress.Email = shippingAddress.Email;
+        }
+        await CalculateTax();
+        StateHasChanged();
+    }
+}

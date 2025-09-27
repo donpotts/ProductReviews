@@ -1,0 +1,56 @@
+@using AppProduct.Shared.Models
+
+<MudChip T="string" 
+         Text="@GetStatusText()" 
+         Color="@GetStatusColor()" 
+         Icon="@GetStatusIcon()"
+         Size="Size.Small" />
+
+@code {
+    [Parameter] public OrderStatus Status { get; set; }
+
+    private string GetStatusText()
+    {
+        return Status switch
+        {
+            OrderStatus.Pending => "Pending",
+            OrderStatus.Confirmed => "Confirmed",
+            OrderStatus.Processing => "Processing",
+            OrderStatus.Shipped => "Shipped",
+            OrderStatus.Delivered => "Delivered",
+            OrderStatus.Cancelled => "Cancelled",
+            OrderStatus.Refunded => "Refunded",
+            _ => "Unknown"
+        };
+    }
+
+    private Color GetStatusColor()
+    {
+        return Status switch
+        {
+            OrderStatus.Pending => Color.Warning,
+            OrderStatus.Confirmed => Color.Info,
+            OrderStatus.Processing => Color.Primary,
+            OrderStatus.Shipped => Color.Secondary,
+            OrderStatus.Delivered => Color.Success,
+            OrderStatus.Cancelled => Color.Error,
+            OrderStatus.Refunded => Color.Dark,
+            _ => Color.Default
+        };
+    }
+
+    private string GetStatusIcon()
+    {
+        return Status switch
+        {
+            OrderStatus.Pending => Icons.Material.Filled.Schedule,
+            OrderStatus.Confirmed => Icons.Material.Filled.CheckCircle,
+            OrderStatus.Processing => Icons.Material.Filled.Autorenew,
+            OrderStatus.Shipped => Icons.Material.Filled.LocalShipping,
+            OrderStatus.Delivered => Icons.Material.Filled.Done,
+            OrderStatus.Cancelled => Icons.Material.Filled.Cancel,
+            OrderStatus.Refunded => Icons.Material.Filled.Undo,
+            _ => Icons.Material.Filled.Help
+        };
+    }
+}
