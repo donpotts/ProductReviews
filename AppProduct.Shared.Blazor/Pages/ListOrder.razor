@@ -16,7 +16,7 @@
     {
         <MudProgressCircular Indeterminate="true" />
     }
-    else if (orders == null || !orders.Any())
+    else if (!orders.Any())
     {
         <MudPaper Class="pa-8" Elevation="2">
             <MudStack AlignItems="AlignItems.Center" Spacing="4">
@@ -101,7 +101,7 @@
 </MudContainer>
 
 @code {
-    private Order[]? orders;
+    private Order[] orders = Array.Empty<Order>();
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -114,10 +114,9 @@
         try
         {
             isLoading = true;
-            var result = await AppService.ListOrderODataAsync(
-                orderby: "OrderDate desc",
-                expand: "Items");
-            orders = result?.Value?.ToArray();
+            var result = await AppService.ListOrderAsync(
+                orderby: "OrderDate desc");
+            orders = result ?? Array.Empty<Order>();
         }
         catch (Exception ex)
         {

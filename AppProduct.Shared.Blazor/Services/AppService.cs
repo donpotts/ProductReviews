@@ -1069,6 +1069,43 @@ public class AppService(
     }
 
     // Order Methods
+    public async Task<Order[]?> ListOrderAsync(
+        string? orderby = null,
+        string? filter = null,
+        string? expand = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        var queryString = HttpUtility.ParseQueryString(string.Empty);
+
+        if (!string.IsNullOrEmpty(orderby))
+        {
+            queryString.Add("$orderby", orderby);
+        }
+
+        if (!string.IsNullOrEmpty(filter))
+        {
+            queryString.Add("$filter", filter);
+        }
+
+        if (!string.IsNullOrEmpty(expand))
+        {
+            queryString.Add("$expand", expand);
+        }
+
+        var query = queryString.ToString();
+        var uri = string.IsNullOrEmpty(query) ? "/api/order" : $"/api/order?{query}";
+
+        HttpRequestMessage request = new(HttpMethod.Get, uri);
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<Order[]>();
+    }
+
     public Task<ODataResult<Order>?> ListOrderODataAsync(
         int? top = null,
         int? skip = null,
