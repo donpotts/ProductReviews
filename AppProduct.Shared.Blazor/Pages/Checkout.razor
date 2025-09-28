@@ -157,7 +157,18 @@
                         else if (selectedPaymentMethod == PaymentMethod.Cash)
                         {
                             <MudAlert Severity="Severity.Info" Class="mt-4">
-                                Your order will be processed for cash payment. You can arrange payment upon delivery or pickup.
+                                <div class="d-flex align-items-start">
+                                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Class="mr-2 mt-1" />
+                                    <div>
+                                        <strong>Cash on Delivery</strong><br>
+                                        Your order will be prepared for delivery. Payment of <strong>@total.ToString("C")</strong> will be collected in cash when your order is delivered to your address.
+                                        <ul class="mt-2 mb-0">
+                                            <li>Our driver will contact you before delivery</li>
+                                            <li>Please have exact change ready if possible</li>
+                                            <li>You'll receive a delivery receipt via email</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </MudAlert>
                         }
                     </MudPaper>
@@ -375,7 +386,8 @@
             else
             {
                 // Process non-credit card orders directly
-                var order = await AppService.ConfirmPaymentAsync(selectedPaymentMethod, null, shipping, billing, GetBillingState(), shippingAmount, notes);
+                var customerEmailAddress = sameAsShipping ? shippingAddress.Email : billingAddress.Email;
+                var order = await AppService.ConfirmPaymentAsync(selectedPaymentMethod, null, shipping, billing, GetBillingState(), shippingAmount, notes, customerEmailAddress);
                 
                 if (order?.Id.HasValue == true)
                 {

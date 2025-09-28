@@ -1241,7 +1241,7 @@ public class AppService(
 
     public async Task<Order?> ConfirmPaymentAsync(PaymentMethod paymentMethod, string? stripeSessionId = null, 
         string? shippingAddress = null, string? billingAddress = null, string billingStateCode = "", 
-        decimal? shippingAmount = null, string? notes = null)
+        decimal? shippingAmount = null, string? notes = null, string? customerEmail = null)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
         var requestData = new 
@@ -1252,7 +1252,8 @@ public class AppService(
             BillingAddress = billingAddress,
             BillingStateCode = billingStateCode,
             ShippingAmount = shippingAmount,
-            Notes = notes
+            Notes = notes,
+            CustomerEmail = customerEmail
         };
         HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/confirm-payment");
         request.Headers.Authorization = new("Bearer", token);

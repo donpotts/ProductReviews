@@ -20,7 +20,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class PaymentController(ApplicationDbContext ctx, IConfiguration configuration, IEmailNotificationService emailService) : ControllerBase
+public class PaymentController(ApplicationDbContext ctx, IConfiguration configuration, IEmailNotificationService emailService, IPdfGenerationService pdfService) : ControllerBase
 {
     [HttpPost("create-stripe-session")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -753,6 +753,76 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
 
         await ctx.SaveChangesAsync();
 
+        // Generate and send appropriate documents for non-credit card payments
+        if (request.PaymentMethod == SharedPaymentMethod.PurchaseOrder)
+        {
+            try
+            {
+                // Load the order with products for PDF generation
+                var orderWithProducts = await ctx.Order
+                    .Include(o => o.Items)!
+                    .ThenInclude(i => i.Product)
+                    .FirstOrDefaultAsync(o => o.Id == order.Id);
+
+                if (orderWithProducts != null)
+                {
+                    // Generate invoice PDF
+                    var invoicePdf = pdfService.GenerateOrderPdf(orderWithProducts);
+
+                    // Get customer email from request or user claims
+                    var customerEmail = request.CustomerEmail ?? User.FindFirstValue(ClaimTypes.Email);
+                    
+                    if (string.IsNullOrEmpty(customerEmail))
+                    {
+                        Console.WriteLine($"No customer email available for PO invoice order {order.Id}");
+                        return order;
+                    }
+
+                    // Send invoice email with PDF attachment
+                    await emailService.SendInvoiceEmailAsync(orderWithProducts, customerEmail, invoicePdf);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error but don't fail the order creation
+                Console.WriteLine($"Failed to generate or send invoice for order {order.Id}: {ex.Message}");
+            }
+        }
+        else if (request.PaymentMethod == SharedPaymentMethod.Cash)
+        {
+            try
+            {
+                // Load the order with products for PDF generation
+                var orderWithProducts = await ctx.Order
+                    .Include(o => o.Items)!
+                    .ThenInclude(i => i.Product)
+                    .FirstOrDefaultAsync(o => o.Id == order.Id);
+
+                if (orderWithProducts != null)
+                {
+                    // Generate delivery receipt PDF (same format as invoice but with different context)
+                    var deliveryReceiptPdf = pdfService.GenerateOrderPdf(orderWithProducts);
+
+                    // Get customer email from request or user claims
+                    var customerEmail = request.CustomerEmail ?? User.FindFirstValue(ClaimTypes.Email);
+                    
+                    if (string.IsNullOrEmpty(customerEmail))
+                    {
+                        Console.WriteLine($"No customer email available for cash order {order.Id}");
+                        return order;
+                    }
+
+                    // Send cash order email with delivery receipt PDF attachment
+                    await emailService.SendCashOrderEmailAsync(orderWithProducts, customerEmail, deliveryReceiptPdf);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error but don't fail the order creation
+                Console.WriteLine($"Failed to generate or send delivery receipt for cash order {order.Id}: {ex.Message}");
+            }
+        }
+
         return order;
     }
 
@@ -826,6 +896,43 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         }
     }
 
+    [HttpGet("invoice/{orderId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult> GetInvoicePdfAsync(long orderId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            // Get the order with products, ensuring it belongs to the current user
+            var order = await ctx.Order
+                .Include(o => o.Items)!
+                .ThenInclude(i => i.Product)
+                .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
+
+            if (order == null)
+            {
+                return NotFound(new { error = "Order not found" });
+            }
+
+            // Generate the PDF invoice
+            var invoicePdf = pdfService.GenerateOrderPdf(order);
+
+            // Return the PDF as a downloadable file
+            return File(invoicePdf, "application/pdf", $"Invoice-{order.OrderNumber}.pdf");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = $"Error generating invoice: {ex.Message}" });
+        }
+    }
+
     private static string GenerateOrderNumber()
     {
         return $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(100000, 999999)}";
@@ -842,4 +949,5 @@ public class ConfirmPaymentRequest
     public string BillingStateCode { get; set; } = "";
     public decimal? ShippingAmount { get; set; }
     public string? Notes { get; set; }
+    public string? CustomerEmail { get; set; }
 }

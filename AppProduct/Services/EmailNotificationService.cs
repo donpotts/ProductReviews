@@ -13,6 +13,8 @@ public interface IEmailNotificationService
     Task SendOrderConfirmationAsync(Order order, string customerEmail);
     Task SendOrderCancellationAsync(Order order, string customerEmail);
     Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string customerEmail);
+    Task SendInvoiceEmailAsync(Order order, string customerEmail, byte[] invoicePdf);
+    Task SendCashOrderEmailAsync(Order order, string customerEmail, byte[] deliveryReceiptPdf);
 }
 
 public class EmailNotificationService : IEmailNotificationService
@@ -1129,5 +1131,589 @@ public class EmailNotificationService : IEmailNotificationService
     private static string HtmlEncode(string? value)
     {
         return WebUtility.HtmlEncode(value ?? string.Empty);
+    }
+
+    public async Task SendInvoiceEmailAsync(Order order, string customerEmail, byte[] invoicePdf)
+    {
+        if (_graphServiceClient == null)
+        {
+            _logger.LogWarning("Microsoft Graph client is not initialized. Cannot send invoice email.");
+            return;
+        }
+
+        var adminEmail = _configuration["EmailSettings:AdminEmail"];
+        if (string.IsNullOrEmpty(adminEmail))
+        {
+            _logger.LogWarning("Admin email not configured");
+            return;
+        }
+
+        try
+        {
+            var subject = $"Invoice for Purchase Order - {order.OrderNumber}";
+            var customerBody = GenerateInvoiceEmail(order, customerEmail);
+            var adminBody = GenerateInvoiceNotificationEmail(order, customerEmail);
+
+            // Convert PDF to base64 attachment
+            var pdfAttachment = new FileAttachment
+            {
+                Name = $"Invoice-{order.OrderNumber}.pdf",
+                ContentType = "application/pdf",
+                ContentBytes = invoicePdf
+            };
+
+            // Send to customer with PDF attachment
+            var customerMessage = new Message
+            {
+                Subject = subject,
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = customerBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
+                },
+                Attachments = new List<Attachment> { pdfAttachment }
+            };
+
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = customerMessage
+            });
+
+            // Send to admin with PDF attachment
+            var adminMessage = new Message
+            {
+                Subject = $"New Purchase Order Invoice Generated - {order.OrderNumber}",
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = adminBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
+                },
+                Attachments = new List<Attachment> { pdfAttachment }
+            };
+
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = adminMessage
+            });
+
+            _logger.LogInformation("Invoice emails sent for order {OrderId}", order.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send invoice emails for order {OrderId}", order.Id);
+            throw;
+        }
+    }
+
+    private string GenerateInvoiceEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Invoice for Purchase Order</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>Invoice for Purchase Order</h2>
+                
+                <p>Dear Customer,</p>
+                
+                <p>Thank you for your Purchase Order! Please find attached the invoice for your order. This invoice serves as your billing document for processing payment through your accounts payable department.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                    <p><strong>Invoice Amount:</strong> <span style='font-size: 1.2em; font-weight: bold; color: #2c5aa0;'>${totalAmount:F2}</span></p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Amount Due:</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Purchase Order Information</h3>
+                    <p>{notesInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Address</h3>
+                    <p>{shippingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Address</h3>
+                    <p>{billingInfo}</p>
+                </div>
+
+                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
+                    <h3 style='margin-top: 0; color: #0c5460;'>Payment Instructions</h3>
+                    <p><strong>Payment Terms:</strong> Net 30 days from invoice date</p>
+                    <p><strong>Remit Payment To:</strong> ProductReviews Accounts Receivable</p>
+                    <p>Please reference order number <strong>{HtmlEncode(order.OrderNumber)}</strong> with your payment.</p>
+                    <p>For any billing questions, please contact our accounting department.</p>
+                </div>
+
+                <p>We will begin processing your order upon receipt of payment or purchase order approval.</p>
+
+                <p>Thank you for your business!</p>
+
+                <p>Best regards,<br>The ProductReviews Team</p>
+
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
+                <p style='font-size: 12px; color: #6c757d;'>
+                    This invoice was automatically generated. Please retain for your records.
+                </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private string GenerateInvoiceNotificationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>New Purchase Order Invoice Generated</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>New Purchase Order Invoice Generated</h2>
+                
+                <p>A new invoice has been generated for a Purchase Order.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Invoice Summary</h3>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
+                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                    <p><strong>Invoice Total:</strong> <span style='font-weight: bold; color: #2c5aa0;'>${totalAmount:F2}</span></p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Invoiced</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Purchase Order Details</h3>
+                    <p>{notesInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Customer Information</h3>
+                    <div style='display: flex; gap: 20px;'>
+                        <div style='flex: 1;'>
+                            <h4 style='margin-top: 0; color: #495057;'>Shipping Address</h4>
+                            <p>{shippingInfo}</p>
+                        </div>
+                        <div style='flex: 1;'>
+                            <h4 style='margin-top: 0; color: #495057;'>Billing Address</h4>
+                            <p>{billingInfo}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
+                    <h3 style='margin-top: 0; color: #0c5460;'>Next Steps</h3>
+                    <p><strong>1. Customer Follow-up:</strong> Monitor for payment or PO processing</p>
+                    <p><strong>2. Order Processing:</strong> Begin fulfillment upon payment receipt/PO approval</p>
+                    <p><strong>3. Status Updates:</strong> Keep customer informed of order progress</p>
+                    <p><strong>4. Payment Terms:</strong> Net 30 days from invoice date</p>
+                </div>
+
+                <p>The invoice PDF has been sent to both the customer and saved for your records.</p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    public async Task SendCashOrderEmailAsync(Order order, string customerEmail, byte[] deliveryReceiptPdf)
+    {
+        if (_graphServiceClient == null)
+        {
+            _logger.LogWarning("Microsoft Graph client is not initialized. Cannot send cash order email.");
+            return;
+        }
+
+        var adminEmail = _configuration["EmailSettings:AdminEmail"];
+        if (string.IsNullOrEmpty(adminEmail))
+        {
+            _logger.LogWarning("Admin email not configured");
+            return;
+        }
+
+        try
+        {
+            var subject = $"Cash Order Delivery Receipt - {order.OrderNumber}";
+            var customerBody = GenerateCashOrderEmail(order, customerEmail);
+            var adminBody = GenerateCashOrderNotificationEmail(order, customerEmail);
+
+            // Convert PDF to base64 attachment
+            var pdfAttachment = new FileAttachment
+            {
+                Name = $"Delivery-Receipt-{order.OrderNumber}.pdf",
+                ContentType = "application/pdf",
+                ContentBytes = deliveryReceiptPdf
+            };
+
+            // Send to customer with PDF attachment
+            var customerMessage = new Message
+            {
+                Subject = subject,
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = customerBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
+                },
+                Attachments = new List<Attachment> { pdfAttachment }
+            };
+
+            var senderEmail = _configuration["EmailSettings:SenderEmail"];
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = customerMessage
+            });
+
+            // Send to admin with PDF attachment
+            var adminMessage = new Message
+            {
+                Subject = $"New Cash Order for Delivery - {order.OrderNumber}",
+                Body = new ItemBody
+                {
+                    ContentType = BodyType.Html,
+                    Content = adminBody
+                },
+                ToRecipients = new List<Recipient>
+                {
+                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
+                },
+                Attachments = new List<Attachment> { pdfAttachment }
+            };
+
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            {
+                Message = adminMessage
+            });
+
+            _logger.LogInformation("Cash order emails sent for order {OrderId}", order.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send cash order emails for order {OrderId}", order.Id);
+            throw;
+        }
+    }
+
+    private string GenerateCashOrderEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
+            ? $"<p><strong>Estimated Delivery:</strong> {order.EstimatedDeliveryDate.Value:MMM dd, yyyy}</p>"
+            : string.Empty;
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Cash Order Delivery Receipt</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>Cash Order - Delivery Receipt</h2>
+                
+                <p>Dear Customer,</p>
+                
+                <p>Thank you for your cash order! We have prepared your order for delivery. Please find attached your delivery receipt which our driver will use to collect payment upon delivery.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
+                    <p><strong>Payment Method:</strong> Cash on Delivery</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                    {estimatedDelivery}
+                    <p><strong>Amount Due on Delivery:</strong> <span style='font-size: 1.2em; font-weight: bold; color: #28a745;'>${totalAmount:F2}</span></p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Delivery:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Due:</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Delivery Address</h3>
+                    <p>{shippingInfo}</p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
+                    <p>{notesInfo}</p>
+                </div>
+
+                <div style='background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;'>
+                    <h3 style='margin-top: 0; color: #155724;'>Cash on Delivery Instructions</h3>
+                    <p><strong>Payment Due:</strong> ${totalAmount:F2} in cash upon delivery</p>
+                    <p><strong>Exact Change:</strong> Please have exact change ready if possible</p>
+                    <p><strong>Receipt:</strong> Our driver will provide you with a receipt upon payment</p>
+                    <p><strong>Contact:</strong> Please be available at the delivery address during the estimated delivery window</p>
+                </div>
+
+                <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Important Notes</h3>
+                    <p>• Our driver will contact you before delivery</p>
+                    <p>• If you're not available, we'll schedule a re-delivery</p>
+                    <p>• Payment must be made in cash - we cannot accept checks or cards</p>
+                    <p>• Keep this receipt for your records</p>
+                </div>
+
+                <p>We will contact you when your order is ready for delivery. Thank you for your business!</p>
+
+                <p>Best regards,<br>The ProductReviews Team</p>
+
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
+                <p style='font-size: 12px; color: #6c757d;'>
+                    This delivery receipt was automatically generated. Please retain for your records.
+                </p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private string GenerateCashOrderNotificationEmail(Order order, string customerEmail)
+    {
+        var itemsHtml = BuildOrderItemsHtml(order);
+        var subtotal = order.Subtotal ?? 0m;
+        var taxAmount = order.TaxAmount ?? 0m;
+        var shippingAmount = order.ShippingAmount ?? 0m;
+        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
+        var orderDate = FormatDate(order.OrderDate);
+        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
+            ? FormatDate(order.EstimatedDeliveryDate, "Not set")
+            : "<em>Not set</em>";
+        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
+        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+
+        return $@"<!DOCTYPE html>
+        <html>
+        <head>
+            <title>New Cash Order for Delivery</title>
+        </head>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
+                <h2 style='color: #2c5aa0; margin-top: 0;'>New Cash Order for Delivery</h2>
+                
+                <p>A new cash order has been placed and requires delivery coordination.</p>
+                
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Summary</h3>
+                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
+                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
+                    <p><strong>Order Date:</strong> {orderDate}</p>
+                    <p><strong>Payment Method:</strong> Cash on Delivery</p>
+                    <p><strong>Status:</strong> {order.Status}</p>
+                    <p><strong>Estimated Delivery:</strong> {estimatedDelivery}</p>
+                    <p><strong>Cash to Collect:</strong> <span style='font-weight: bold; color: #28a745;'>${totalAmount:F2}</span></p>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items for Delivery</h3>
+                    <table style='width: 100%; border-collapse: collapse;'>
+                        <thead>
+                            <tr style='background-color: #f8f9fa;'>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
+                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {itemsHtml}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
+                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
+                            </tr>
+                            {(taxAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
+                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            {(shippingAmount > 0 ? $@"<tr>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Delivery:</td>
+                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
+                            </tr>" : string.Empty)}
+                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
+                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Cash to Collect:</td>
+                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
+                    <h3 style='margin-top: 0; color: #2c5aa0;'>Delivery Information</h3>
+                    <h4 style='margin-top: 0; color: #495057;'>Delivery Address</h4>
+                    <p>{shippingInfo}</p>
+                    
+                    <h4 style='margin-top: 20px; color: #495057;'>Special Instructions</h4>
+                    <p>{notesInfo}</p>
+                </div>
+
+                <div style='background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;'>
+                    <h3 style='margin-top: 0; color: #155724;'>Driver Instructions</h3>
+                    <p><strong>Cash Collection:</strong> Collect exactly ${totalAmount:F2} in cash</p>
+                    <p><strong>Customer Contact:</strong> Call customer before delivery</p>
+                    <p><strong>Receipt:</strong> Provide customer with delivery receipt (attached)</p>
+                    <p><strong>Change:</strong> Be prepared to make change if customer doesn't have exact amount</p>
+                </div>
+
+                <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;'>
+                    <h3 style='margin-top: 0; color: #856404;'>Next Steps</h3>
+                    <p><strong>1. Prepare Order:</strong> Package items for delivery</p>
+                    <p><strong>2. Schedule Delivery:</strong> Contact customer to arrange delivery time</p>
+                    <p><strong>3. Dispatch Driver:</strong> Provide driver with delivery receipt and change</p>
+                    <p><strong>4. Complete Delivery:</strong> Update order status to 'Delivered' after successful cash collection</p>
+                </div>
+
+                <p>The delivery receipt has been sent to the customer and is attached for driver reference.</p>
+            </div>
+        </body>
+        </html>";
     }
 }
