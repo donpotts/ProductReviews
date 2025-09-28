@@ -56,29 +56,18 @@ else
     public long Id { get; set; }
 
     [CascadingParameter]
-    MudDialogInstance? MudDialog { get; set; }
+    IMudDialogInstance? MudDialog { get; set; }
 
     private Product[]? productArray;
-    private IEnumerable<long?>? productValues;
+    private IEnumerable<long?> productValues = Array.Empty<long?>();
     private Tag? record;
 
     private string GetAbsoluteUri(string uri)
     {
         if (!uri.StartsWith("/"))
-        {
             return uri;
-        }
-
-        var baseUri = HttpClient.BaseAddress;
-
-        if (baseUri == null)
-        {
-            throw new Exception("Unable to determine base address");
-        }
-
-        Uri absolute = new(baseUri, uri);
-
-        return absolute.ToString();
+        var baseUri = HttpClient.BaseAddress ?? throw new Exception("Unable to determine base address");
+        return new Uri(baseUri, uri).ToString();
     }
 
     protected override async Task OnInitializedAsync()
@@ -87,7 +76,8 @@ else
         {
             productArray = await AppService.ListProductAsync();
             record = await AppService.GetTagByIdAsync(Id);
-            productValues = record?.Product?.Select(x => x.Id).ToHashSet() ?? [];
+            if (record != null)
+                productValues = record.Product.Select(x => x.Id).ToHashSet();
         }
         catch (Exception ex)
         {
@@ -95,21 +85,15 @@ else
         }
     }
 
-    private void OnCancel()
-    {
-        MudDialog?.Cancel();
-    }
+    private void OnCancel() => MudDialog?.Cancel();
 
     private async void OnSubmit()
     {
         if (record == null)
-        {
             return;
-        }
-
         try
         {
-            record.Product = productValues?.Select(x => new Product { Id = x }).ToList();
+            record.Product = productValues.Where(x=>x.HasValue).Select(x => new Product { Id = x }).ToList();
             await AppService.UpdateTagAsync(Id, record);
             MudDialog?.Close();
         }
@@ -126,9 +110,7 @@ else
             Snackbar.Add("Only PNG or JPEG images can be uploaded.", Severity.Error);
             return null;
         }
-
         var image = await file.RequestImageFileAsync("image/png", maxWidth, maxHeight);
-
         try
         {
             return await AppService.UploadImageAsync(image);
@@ -137,7 +119,6 @@ else
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
-
         return null;
     }
 }

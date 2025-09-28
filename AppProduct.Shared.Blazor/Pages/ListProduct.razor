@@ -154,17 +154,18 @@ else
         <PropertyColumn Property="x => x!.Description" Title="Description" />
         <PropertyColumn Property="x => x!.DetailedSpecs" Title="DetailedSpecs" />
         <PropertyColumn Property="x => x!.Price" Title="Price" />
-        <TemplateColumn Property="x => x!.ImageUrl" Title="Image" Sortable="false">
+        <TemplateColumn Title="Image" Sortable="false">
             <CellTemplate>
                 @if (!string.IsNullOrEmpty(context.Item?.ImageUrl))
                 {
-                    <MudImage Src="@GetImageUrl(context.Item.ImageUrl)" 
-                             Alt="Product Image" 
-                             Width="80" 
-                             Height="60" 
-                             ObjectFit="ObjectFit.Cover" 
-                             Style="border-radius: 4px; cursor: pointer;"
-                             OnClick="@(() => ShowImageDialog(context.Item.ImageUrl))" />
+                    <MudButton Variant="Variant.Text" Style="padding: 0;" OnClick="@(() => ShowImageDialog(context.Item.ImageUrl))">
+                        <MudImage Src="@GetImageUrl(context.Item.ImageUrl)" 
+                                 Alt="Product Image" 
+                                 Width="80" 
+                                 Height="60" 
+                                 ObjectFit="ObjectFit.Cover" 
+                                 Style="border-radius: 4px;" />
+                    </MudButton>
                 }
                 else
                 {
@@ -314,13 +315,13 @@ else
         {
             ["ImageUrl"] = GetImageUrl(imageUrl)
         };
-        
-        await DialogService.Show<ProductImageDialog>("Product Image", parameters, new DialogOptions 
-        { 
+        var options = new DialogOptions
+        {
             MaxWidth = MaxWidth.Medium,
             CloseButton = true,
             BackdropClick = true
-        }).Result;
+        };
+        await (await DialogService.ShowAsync<ProductImageDialog>("Product Image", parameters, options)).Result;
     }
 
     private async Task<GridData<Product>> ServerReload(GridState<Product> state)
@@ -365,26 +366,20 @@ else
     private async void OnAdd()
     {
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<AddProduct>("Add Product", dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<AddProduct>("Add Product", dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnEdit(Product record)
     {
         DialogParameters<UpdateProduct> dialogParams = new() { { x => x.Id, record.Id!.Value } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<UpdateProduct>("Update Product", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<UpdateProduct>("Update Product", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnDelete(Product record)
@@ -444,51 +439,40 @@ else
     private async Task ExportAllToCSV()
     {
         AppService.ODataResult<Product>? result = null;
-
         try
         {
-            // Fetch all data from the OData service without any filters or restrictions
             result = await AppService.ListProductODataAsync(null, null, null, null, true, "Category,Brand,Feature,Tag,ProductReview");
-
-            if (result != null && result.Value != null)
+            if (result?.Value is { } products)
             {
-                var ar = result.Value.ToList().Select(x => new
+                var records = products.Select(x => new
                 {
-                        x.Id,
-    x.Model,
-    x.Name,
-    x.Description,
-    x.DetailedSpecs,
-    x.Price,
-    x.ImageUrl,
-    x.InStock,
-    x.ReleaseDate,
-    x.CreatedDate,
-    x.ModifiedDate,
-    x.Notes,
-    x.UserId,
-Category = string.Join(", ", x.Category?.Select(x => x.Name?.ToString() ?? string.Empty) ?? []),
-Brand = string.Join(", ", x.Brand?.Select(x => x.Name?.ToString() ?? string.Empty) ?? []),
-Feature = string.Join(", ", x.Feature?.Select(x => x.Name?.ToString() ?? string.Empty) ?? []),
-Tag = string.Join(", ", x.Tag?.Select(x => x.Name?.ToString() ?? string.Empty) ?? []),
-ProductReview = string.Join(", ", x.ProductReview?.Select(x => x.Title?.ToString() ?? string.Empty) ?? []),
-
+                    x.Id,
+                    x.Model,
+                    x.Name,
+                    x.Description,
+                    x.DetailedSpecs,
+                    x.Price,
+                    x.ImageUrl,
+                    x.InStock,
+                    x.ReleaseDate,
+                    x.CreatedDate,
+                    x.ModifiedDate,
+                    x.Notes,
+                    x.UserId,
+                    Category = string.Join(", ", x.Category?.Select(c => c.Name ?? string.Empty) ?? Array.Empty<string>()),
+                    Brand = string.Join(", ", x.Brand?.Select(b => b.Name ?? string.Empty) ?? Array.Empty<string>()),
+                    Feature = string.Join(", ", x.Feature?.Select(f => f.Name ?? string.Empty) ?? Array.Empty<string>()),
+                    Tag = string.Join(", ", x.Tag?.Select(t => t.Name ?? string.Empty) ?? Array.Empty<string>()),
+                    ProductReview = string.Join(", ", x.ProductReview?.Select(r => r.Title ?? string.Empty) ?? Array.Empty<string>())
                 });
-
                 using var memoryStream = new MemoryStream();
                 using (var writer = new StreamWriter(memoryStream))
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteRecords(ar); // use CSVHelper to write the records to the CSV file
+                    csv.WriteRecords(records);
                 }
-                // Convert MemoryStream to ByteArray
-                var byteArray = memoryStream.ToArray();
-
-                // Convert ByteArray to Base64String
-                var base64 = Convert.ToBase64String(byteArray);
-
-                // Trigger file download
-                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Product_"+ System.DateTime.Now.ToString("yyyyMMddHHmmss") +".csv");
+                var base64 = Convert.ToBase64String(memoryStream.ToArray());
+                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Product_" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".csv");
             }
         }
         catch (Exception ex)

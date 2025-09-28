@@ -61,8 +61,7 @@
                         <MudTextField T="string" 
                                     Label="Your Response" 
                                     @bind-Value="ResponseText"
-                                    Multiline="true" 
-                                    Rows="4"
+                                    Lines="4"
                                     MaxLength="1000"
                                     Counter="1000"
                                     Required="true"
@@ -142,7 +141,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public ProductReview? Review { get; set; }
     

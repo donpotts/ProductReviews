@@ -56,50 +56,48 @@ public class ProductController(ApplicationDbContext ctx) : ControllerBase
             return Conflict();
         }
     
-        var category = product.Category;
-        product.Category = null;
+        // Capture related IDs before clearing navigation collections to avoid NULL assignments on non-nullable lists
+        var categoryIds = product.Category.Select(y => y.Id).ToList();
+        var brandIds = product.Brand.Select(y => y.Id).ToList();
+        var featureIds = product.Feature.Select(y => y.Id).ToList();
+        var tagIds = product.Tag.Select(y => y.Id).ToList();
+        var reviewIds = product.ProductReview.Select(y => y.Id).ToList();
 
-        var brand = product.Brand;
-        product.Brand = null;
-
-        var feature = product.Feature;
-        product.Feature = null;
-
-        var tag = product.Tag;
-        product.Tag = null;
-
-        var productReview = product.ProductReview;
-        product.ProductReview = null;
+        product.Category = new();
+        product.Brand = new();
+        product.Feature = new();
+        product.Tag = new();
+        product.ProductReview = new();
 
         await ctx.Product.AddAsync(product);
 
-        if (category != null)
+        if (categoryIds.Count > 0)
         {
-            var newValues = await ctx.Category.Where(x => category.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Category.Where(x => categoryIds.Contains(x.Id)).ToListAsync();
             product.Category = [..newValues];
         }
 
-        if (brand != null)
+        if (brandIds.Count > 0)
         {
-            var newValues = await ctx.Brand.Where(x => brand.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Brand.Where(x => brandIds.Contains(x.Id)).ToListAsync();
             product.Brand = [..newValues];
         }
 
-        if (feature != null)
+        if (featureIds.Count > 0)
         {
-            var newValues = await ctx.Feature.Where(x => feature.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Feature.Where(x => featureIds.Contains(x.Id)).ToListAsync();
             product.Feature = [..newValues];
         }
 
-        if (tag != null)
+        if (tagIds.Count > 0)
         {
-            var newValues = await ctx.Tag.Where(x => tag.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Tag.Where(x => tagIds.Contains(x.Id)).ToListAsync();
             product.Tag = [..newValues];
         }
 
-        if (productReview != null)
+        if (reviewIds.Count > 0)
         {
-            var newValues = await ctx.ProductReview.Where(x => productReview.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.ProductReview.Where(x => reviewIds.Contains(x.Id)).ToListAsync();
             product.ProductReview = [..newValues];
         }
 

@@ -238,26 +238,20 @@ else
     private async void OnAdd()
     {
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<AddFeature>("Add Feature", dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<AddFeature>("Add Feature", dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnEdit(Feature record)
     {
         DialogParameters<UpdateFeature> dialogParams = new() { { x => x.Id, record.Id!.Value } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<UpdateFeature>("Update Feature", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<UpdateFeature>("Update Feature", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnDelete(Feature record)
@@ -413,43 +407,32 @@ else
     private async Task ExportAllToCSV()
     {
         AppService.ODataResult<Feature>? result = null;
-
         try
         {
-            // Fetch all data from the OData service without any filters or restrictions
             result = await AppService.ListFeatureODataAsync(null, null, null, null, true, "Product");
-
-            if (result != null && result?.Value != null)
+            if (result?.Value is { } features)
             {
-                var ar = result?.Value.ToList().Select(x => new
+                var records = features.Select(x => new
                 {
-                        x.Id,
-    x.Name,
-    x.Description,
-    x.IconUrl,
-    x.Type,
-    x.CreatedDate,
-    x.ModifiedDate,
-    x.Notes,
-    x.UserId,
-Product = string.Join(", ", x.Product?.Select(x => x.Name?.ToString() ?? string.Empty) ?? []),
-
+                    x.Id,
+                    x.Name,
+                    x.Description,
+                    x.IconUrl,
+                    x.Type,
+                    x.CreatedDate,
+                    x.ModifiedDate,
+                    x.Notes,
+                    x.UserId,
+                    Product = string.Join(", ", x.Product?.Select(p => p.Name ?? string.Empty) ?? Array.Empty<string>())
                 });
-
                 using var memoryStream = new MemoryStream();
                 using (var writer = new StreamWriter(memoryStream))
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteRecords(ar); // use CSVHelper to write the records to the CSV file
+                    csv.WriteRecords(records);
                 }
-                // Convert MemoryStream to ByteArray
-                var byteArray = memoryStream.ToArray();
-
-                // Convert ByteArray to Base64String
-                var base64 = Convert.ToBase64String(byteArray);
-
-                // Trigger file download
-                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Feature_"+ System.DateTime.Now.ToString("yyyyMMddHHmmss") +".csv");
+                var base64 = Convert.ToBase64String(memoryStream.ToArray());
+                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Feature_" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".csv");
             }
         }
         catch (Exception ex)

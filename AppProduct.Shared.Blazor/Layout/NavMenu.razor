@@ -162,10 +162,7 @@
 
     public void ScreenSizeChanged(bool hidden)
     {
-        if (hidden)
-            CheckedVariable = false;
-        else
-            CheckedVariable = isSwitchChecked;
+        CheckedVariable = hidden ? false : isSwitchChecked;
     }
 
     public void OnSwitchValueChanged(bool checkedValue)
@@ -178,9 +175,9 @@
     {
         if (firstRender && mudThemeProvider != null)
         {
-            isDarkMode = await mudThemeProvider.GetSystemPreference();
+            isDarkMode = await mudThemeProvider.GetSystemDarkModeAsync();
             StateHasChanged();
-            await mudThemeProvider.WatchSystemPreference(OnSystemPreferenceChanged);
+            await mudThemeProvider.WatchSystemDarkModeAsync(OnSystemPreferenceChanged);
         }
     }
 

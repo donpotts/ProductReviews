@@ -44,28 +44,25 @@
     @if (responses.Any())
     {
         <MudPaper Class="pa-4" Elevation="1">
-            <MudStack Spacing="3">
+            <MudExpansionPanels MultiExpansion="true">
                 @foreach (var r in responses)
                 {
-                    var expanded = responses[0] == r; // auto-expand newest inserted at index 0
-                    <MudExpansionPanels>
-                        <MudExpansionPanel Text="@($"Q: {r.Question}")" Expanded="@expanded">
-                            <MudText Typo="Typo.body1">@((MarkupString)r.AnswerHtml)</MudText>
-                            @if (r.Sources.Any())
-                            {
-                                <MudDivider Class="my-2" />
-                                <MudText Typo="Typo.subtitle2">Sources:</MudText>
-                                <ul class="mud-typography-body2">
-                                    @foreach (var s in r.Sources)
-                                    {
-                                        <li>@s.Id - @s.Name (@s.Price)</li>
-                                    }
-                                </ul>
-                            }
-                        </MudExpansionPanel>
-                    </MudExpansionPanels>
+                    <MudExpansionPanel Text="@($"Q: {r.Question}")" Expanded="@r.Expanded" ExpandedChanged="@(v => r.Expanded = v)">
+                        <MudText Typo="Typo.body1">@((MarkupString)r.AnswerHtml)</MudText>
+                        @if (r.Sources.Any())
+                        {
+                            <MudDivider Class="my-2" />
+                            <MudText Typo="Typo.subtitle2">Sources:</MudText>
+                            <ul class="mud-typography-body2">
+                                @foreach (var s in r.Sources)
+                                {
+                                    <li>@s.Id - @s.Name (@s.Price)</li>
+                                }
+                            </ul>
+                        }
+                    </MudExpansionPanel>
                 }
-            </MudStack>
+            </MudExpansionPanels>
         </MudPaper>
     }
 </MudStack>
@@ -87,7 +84,15 @@
         {
             var (answer, sources) = await AppService.AskProductChatAsync(question);
             var safe = System.Net.WebUtility.HtmlEncode(answer).Replace("\n", "<br/>");
-            responses.Insert(0, new ChatRecord(question, safe, sources.ToList()));
+            // collapse previous, expand new
+            foreach (var r in responses) r.Expanded = false;
+            responses.Insert(0, new ChatRecord
+            {
+                Question = question,
+                AnswerHtml = safe,
+                Sources = sources.ToList(),
+                Expanded = true
+            });
             userQuestion = string.Empty;
         }
         catch (Exception ex)
@@ -108,5 +113,11 @@
         }
     }
 
-    private record ChatRecord(string Question, string AnswerHtml, List<AppService.ProductSource> Sources);
+    private class ChatRecord
+    {
+        public string Question { get; set; } = string.Empty;
+        public string AnswerHtml { get; set; } = string.Empty;
+        public List<AppService.ProductSource> Sources { get; set; } = new();
+        public bool Expanded { get; set; }
+    }
 }

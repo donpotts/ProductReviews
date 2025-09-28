@@ -79,11 +79,7 @@
                             </MudStack>
                             @if (review.Rating.HasValue)
                             {
-                                <StarRating Value="@((decimal?)review.Rating.Value)" 
-                                          ReadOnly="true" 
-                                          Size="Size.Small" 
-                                          ShowRatingText="true" 
-                                          AverageRating="@((decimal?)review.Rating.Value)" />
+                                <StarRating Value="@((decimal?)review.Rating.Value)" ReadOnly="true" Size="Size.Small" ShowRatingText="true" AverageRating="@((decimal?)review.Rating.Value)" />
                             }
                             @if (!string.IsNullOrEmpty(review.Title))
                             {
@@ -119,11 +115,7 @@
                         <MudCardActions>
                             <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="@Size.Small" title="Edit" OnClick="@(e => OnEdit(review))" />
                             <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="@Size.Small" title="Delete" OnClick="@(e => OnDelete(review))" />
-                            <MudIconButton Icon="@Icons.Material.Outlined.Reply" 
-                                         Size="@Size.Small" 
-                                         title="@(string.IsNullOrEmpty(review.Response) ? "Add Response" : "Edit Response")" 
-                                         OnClick="@(e => OnRespondToReview(review))" 
-                                         Color="@(string.IsNullOrEmpty(review.Response) ? Color.Primary : Color.Secondary)" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.Reply" Size="@Size.Small" title="@(string.IsNullOrEmpty(review.Response) ? "Add Response" : "Edit Response")" OnClick="@(e => OnRespondToReview(review))" Color="@(string.IsNullOrEmpty(review.Response) ? Color.Primary : Color.Secondary)" />
                             <MudSpacer />
                             <MudText Typo="Typo.caption" Color="Color.Tertiary">
                                 @review.ReviewDate?.ToString("MMM dd, yyyy")
@@ -136,7 +128,7 @@
         
         <!-- Card View Pagination -->
         <MudStack Row="true" Justify="Justify.Center" Class="mt-4">
-            <MudPagination Count="@_totalPages" SelectedChanged="OnPageChanged" Selected="_currentPage" ShowFirstButton="true" ShowLastButton="true" />
+            <MudPagination Count="@_totalPages" SelectedChanged="OnPageChanged" Selected="@_currentPage" ShowFirstButton="true" ShowLastButton="true" />
         </MudStack>
     }
     else
@@ -180,7 +172,7 @@ else
         <PropertyColumn Property="x => x!.ModifiedDate" Title="ModifiedDate" />
         <PropertyColumn Property="x => x!.Notes" Title="Notes" />
         <PropertyColumn Property="x => x!.UserId" Title="UserId" />
-        <TemplateColumn Property="x => x!.Response" Title="Response" Sortable="false">
+        <TemplateColumn Title="Response" Sortable="false">
             <CellTemplate>
                 @if (!string.IsNullOrEmpty(context.Item?.Response))
                 {
@@ -204,11 +196,7 @@ else
                 <MudStack Row="true">
                     <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="@Size.Small" title="Edit" OnClick="@(e => OnEdit(context.Item!))" />
                     <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="@Size.Small" title="Delete" OnClick="@(e => OnDelete(context.Item!))" />
-                    <MudIconButton Icon="@Icons.Material.Outlined.Reply" 
-                                 Size="@Size.Small" 
-                                 title="@(string.IsNullOrEmpty(context.Item?.Response) ? "Add Response" : "Edit Response")" 
-                                 OnClick="@(e => OnRespondToReview(context.Item!))"
-                                 Color="@(string.IsNullOrEmpty(context.Item?.Response) ? Color.Primary : Color.Secondary)" />
+                    <MudIconButton Icon="@Icons.Material.Outlined.Reply" Size="@Size.Small" title="@(string.IsNullOrEmpty(context.Item?.Response) ? "Add Response" : "Edit Response")" OnClick="@(e => OnRespondToReview(context.Item!))" Color="@(string.IsNullOrEmpty(context.Item?.Response) ? Color.Primary : Color.Secondary)" />
                 </MudStack>
             </CellTemplate>
         </TemplateColumn>
@@ -253,20 +241,9 @@ else
     private string GetAbsoluteUri(string uri)
     {
         if (!uri.StartsWith("/"))
-        {
             return uri;
-        }
-
-        var baseUri = HttpClient.BaseAddress;
-
-        if (baseUri == null)
-        {
-            throw new Exception("Unable to determine base address");
-        }
-
-        Uri absolute = new(baseUri, uri);
-
-        return absolute.ToString();
+        var baseUri = HttpClient.BaseAddress ?? throw new Exception("Unable to determine base address");
+        return new Uri(baseUri, uri).ToString();
     }
 
     private async Task<GridData<ProductReview>> ServerReload(GridState<ProductReview> state)
@@ -280,38 +257,22 @@ else
 
         try
         {
-            // Add product filter if specified
             var filters = new List<string>();
-            
             if (_productIdFilter.HasValue)
-            {
                 filters.Add($"ProductId eq {_productIdFilter.Value}");
-            }
-            
             if (_searchString?.Length > 0)
             {
-               bool isNumeric = double.TryParse(_searchString, out _);
-               bool isDateTime = DateTime.TryParse(_searchString, out _);
-
-               if (isNumeric)
-               {
-                   filters.Add($"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}");
-               }
-               else if (isDateTime)
-               {
-                   filters.Add($"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)");
-               }
-               else
-               {
-                   filters.Add($"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ");
-               }
+                bool isNumeric = double.TryParse(_searchString, out _);
+                bool isDateTime = DateTime.TryParse(_searchString, out _);
+                if (isNumeric)
+                    filters.Add($"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}");
+                else if (isDateTime)
+                    filters.Add($"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)");
+                else
+                    filters.Add($"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ");
             }
-
             if (!string.IsNullOrWhiteSpace(filter))
-            {
                 filters.Add(filter);
-            }
-
             var combinedFilter = filters.Any() ? string.Join(" and ", filters.Select(f => $"({f})")) : null;
             result = await AppService.ListProductReviewODataAsync(top, skip, orderby, combinedFilter, true, null);
         }
@@ -326,26 +287,20 @@ else
     private async void OnAdd()
     {
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<AddProductReview>("Add ProductReview", dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<AddProductReview>("Add ProductReview", dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnEdit(ProductReview record)
     {
         DialogParameters<UpdateProductReview> dialogParams = new() { { x => x.Id, record.Id!.Value } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<UpdateProductReview>("Update ProductReview", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<UpdateProductReview>("Update ProductReview", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnDelete(ProductReview record)
@@ -355,7 +310,6 @@ else
             "Are you sure you want to delete this record?",
             "Delete",
             "Cancel");
-
         if (result.GetValueOrDefault(false))
         {
             try
@@ -363,9 +317,7 @@ else
                 await AppService.DeleteProductReviewAsync(record.Id!.Value);
                 await (grid?.ReloadServerData() ?? Task.CompletedTask);
                 if (_isCardView)
-                {
                     await LoadCardData();
-                }
             }
             catch (Exception ex)
             {
@@ -378,40 +330,26 @@ else
     {
         DialogParameters<ReviewResponseDialog> dialogParams = new() { { x => x.Review, record } };
         DialogOptions dialogOptions = new() { FullWidth = true, MaxWidth = MaxWidth.Large, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<ReviewResponseDialog>("Respond to Review", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<ReviewResponseDialog>("Respond to Review", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
         {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
             if (_isCardView)
-            {
                 await LoadCardData();
-            }
         }
     }
     
     private void SearchChanged(string Value)
     {
-        if (Value.EndsWith("."))
-        {
+        if (Value.EndsWith('.'))
             return;
-        }
-        _searchString = Value.ToString().ToLower();
-        try
+        _searchString = Value.ToLowerInvariant();
+        if (_searchString.Length > 18)
         {
-            if (_searchString.Length > 18)
-            {
-                DateTimeOffset dateTime = DateTime.Parse(_searchString);
-                _searchString = dateTime.ToString("yyyy-MM-ddTHH:mm:ssK");
-                //Console.WriteLine(_searchString);
-            }
+            if (DateTimeOffset.TryParse(_searchString, out var dt))
+                _searchString = dt.ToString("yyyy-MM-ddTHH:mm:ssK");
         }
-        catch
-        {
-            return;
-        }
-        
         if (_isCardView)
         {
             _currentPage = 1;
@@ -426,46 +364,36 @@ else
     private async Task ExportAllToCSV()
     {
         AppService.ODataResult<ProductReview>? result = null;
-
         try
         {
-            // Fetch all data from the OData service without any filters or restrictions
             result = await AppService.ListProductReviewODataAsync(null, null, null, null, true, null);
-
-            if (result != null && result?.Value != null)
+            if (result?.Value is { } reviews)
             {
-                var ar = result?.Value.ToList().Select(x => new
+                var records = reviews.Select(x => new
                 {
-                        x.Id,
-                        x.ProductId,
-                        x.CustomerName,
-                        x.CustomerEmail,
-                        x.Rating,
-                        x.Title,
-                        x.ReviewText,
-                        x.ReviewDate,
-                        x.IsVerifiedPurchase,
-                        x.HelpfulVotes,
-                        x.CreatedDate,
-                        x.ModifiedDate,
-                        x.Notes,
-                        x.UserId,
+                    x.Id,
+                    x.ProductId,
+                    x.CustomerName,
+                    x.CustomerEmail,
+                    x.Rating,
+                    x.Title,
+                    x.ReviewText,
+                    x.ReviewDate,
+                    x.IsVerifiedPurchase,
+                    x.HelpfulVotes,
+                    x.CreatedDate,
+                    x.ModifiedDate,
+                    x.Notes,
+                    x.UserId,
                 });
-
                 using var memoryStream = new MemoryStream();
                 using (var writer = new StreamWriter(memoryStream))
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteRecords(ar); // use CSVHelper to write the records to the CSV file
+                    csv.WriteRecords(records);
                 }
-                // Convert MemoryStream to ByteArray
-                var byteArray = memoryStream.ToArray();
-
-                // Convert ByteArray to Base64String
-                var base64 = Convert.ToBase64String(byteArray);
-
-                // Trigger file download
-                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "ProductReview_"+ System.DateTime.Now.ToString("yyyyMMddHHmmss") +".csv");
+                var base64 = Convert.ToBase64String(memoryStream.ToArray());
+                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "ProductReview_" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".csv");
             }
         }
         catch (Exception ex)
@@ -477,11 +405,9 @@ else
     private async Task ImportFromCSV(IBrowserFile file)
     {
         if (file == null) return;
-
         _csvFile = file;
         _isImporting = true;
         StateHasChanged();
-
         try
         {
             var fileContent = new byte[_csvFile.Size];
@@ -489,67 +415,38 @@ else
             {
                 await stream.ReadAsync(fileContent, 0, (int)_csvFile.Size);
             }
-
             using var memoryStream = new MemoryStream(fileContent);
             using var reader = new StreamReader(memoryStream);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-            
             csv.Context.Configuration.HeaderValidated = null;
             csv.Context.Configuration.MissingFieldFound = null;
-
             var productReviews = new List<ProductReview>();
             await csv.ReadAsync();
             csv.ReadHeader();
-            
             while (await csv.ReadAsync())
             {
-                var productReview = new ProductReview();
-                
-                productReview.CustomerName = GetFieldValue(csv, "customername") ?? GetFieldValue(csv, "CustomerName");
-                productReview.CustomerEmail = GetFieldValue(csv, "customeremail") ?? GetFieldValue(csv, "CustomerEmail");
-                productReview.Title = GetFieldValue(csv, "title") ?? GetFieldValue(csv, "Title");
-                productReview.ReviewText = GetFieldValue(csv, "reviewtext") ?? GetFieldValue(csv, "ReviewText");
-                productReview.Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes");
-                
+                var productReview = new ProductReview
+                {
+                    CustomerName = GetFieldValue(csv, "customername") ?? GetFieldValue(csv, "CustomerName"),
+                    CustomerEmail = GetFieldValue(csv, "customeremail") ?? GetFieldValue(csv, "CustomerEmail"),
+                    Title = GetFieldValue(csv, "title") ?? GetFieldValue(csv, "Title"),
+                    ReviewText = GetFieldValue(csv, "reviewtext") ?? GetFieldValue(csv, "ReviewText"),
+                    Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes")
+                };
                 var productIdStr = GetFieldValue(csv, "productid") ?? GetFieldValue(csv, "ProductId");
-                if (!string.IsNullOrWhiteSpace(productIdStr) && long.TryParse(productIdStr, out var productId))
-                {
-                    productReview.ProductId = productId;
-                }
-                
+                if (!string.IsNullOrWhiteSpace(productIdStr) && long.TryParse(productIdStr, out var productId)) productReview.ProductId = productId;
                 var ratingStr = GetFieldValue(csv, "rating") ?? GetFieldValue(csv, "Rating");
-                if (!string.IsNullOrWhiteSpace(ratingStr) && long.TryParse(ratingStr, out var rating))
-                {
-                    productReview.Rating = rating;
-                }
-                
+                if (!string.IsNullOrWhiteSpace(ratingStr) && long.TryParse(ratingStr, out var rating)) productReview.Rating = rating;
                 var verifiedStr = GetFieldValue(csv, "isverifiedpurchase") ?? GetFieldValue(csv, "IsVerifiedPurchase");
-                if (!string.IsNullOrWhiteSpace(verifiedStr) && bool.TryParse(verifiedStr, out var isVerified))
-                {
-                    productReview.IsVerifiedPurchase = isVerified;
-                }
-                
+                if (!string.IsNullOrWhiteSpace(verifiedStr) && bool.TryParse(verifiedStr, out var isVerified)) productReview.IsVerifiedPurchase = isVerified;
                 var helpfulVotesStr = GetFieldValue(csv, "helpfulvotes") ?? GetFieldValue(csv, "HelpfulVotes");
-                if (!string.IsNullOrWhiteSpace(helpfulVotesStr) && long.TryParse(helpfulVotesStr, out var helpfulVotes))
-                {
-                    productReview.HelpfulVotes = helpfulVotes;
-                }
-                
+                if (!string.IsNullOrWhiteSpace(helpfulVotesStr) && long.TryParse(helpfulVotesStr, out var helpfulVotes)) productReview.HelpfulVotes = helpfulVotes;
                 var reviewDateStr = GetFieldValue(csv, "reviewdate") ?? GetFieldValue(csv, "ReviewDate");
-                if (!string.IsNullOrWhiteSpace(reviewDateStr) && DateTime.TryParse(reviewDateStr, out var reviewDate))
-                {
-                    productReview.ReviewDate = reviewDate;
-                }
-                
+                if (!string.IsNullOrWhiteSpace(reviewDateStr) && DateTime.TryParse(reviewDateStr, out var reviewDate)) productReview.ReviewDate = reviewDate;
                 var userIdStr = GetFieldValue(csv, "userid") ?? GetFieldValue(csv, "UserId");
-                if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId))
-                {
-                    productReview.UserId = userId;
-                }
-
+                if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId)) productReview.UserId = userId;
                 productReviews.Add(productReview);
             }
-
             if (productReviews.Any())
             {
                 var response = await AppService.BulkUpsertProductReviewAsync(productReviews);
@@ -560,7 +457,6 @@ else
                     var processedCount = jsonElement.GetProperty("processedCount").GetInt32();
                     var addedCount = jsonElement.GetProperty("addedCount").GetInt32();
                     var updatedCount = jsonElement.GetProperty("updatedCount").GetInt32();
-                    
                     if (success)
                     {
                         Snackbar.Add($"Import successful: {processedCount} processed, {addedCount} added, {updatedCount} updated", Severity.Success);
@@ -590,16 +486,8 @@ else
 
     private string? GetFieldValue(CsvReader csv, string fieldName)
     {
-        try
-        {
-            return csv.GetField(fieldName);
-        }
-        catch
-        {
-            return null;
-        }
+        try { return csv.GetField(fieldName); } catch { return null; }
     }
-
 
     private async void ClearProductFilter()
     {
@@ -619,25 +507,15 @@ else
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(Navigation.Uri);
-        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var queryParams = HttpUtility.ParseQueryString(uri.Query);
         var productIdParam = queryParams["productId"];
-        
         if (!string.IsNullOrEmpty(productIdParam) && long.TryParse(productIdParam, out var productId))
-        {
             _productIdFilter = productId;
-        }
-
-        // Load view preference from localStorage
         var savedViewPreference = await StorageService.GetAsync<bool?>("productreview-view-preference");
         if (savedViewPreference.HasValue)
-        {
             _isCardView = savedViewPreference.Value;
-        }
-
         if (_isCardView)
-        {
             await LoadCardData();
-        }
     }
 
     private async Task LoadCardData()
@@ -645,38 +523,24 @@ else
         var skip = (_currentPage - 1) * _pageSize;
         var orderby = "CreatedDate desc";
         var filters = new List<string>();
-        
-        if (_productIdFilter.HasValue)
-        {
-            filters.Add($"ProductId eq {_productIdFilter.Value}");
-        }
-        
+        if (_productIdFilter.HasValue) filters.Add($"ProductId eq {_productIdFilter.Value}");
         if (_searchString?.Length > 0)
         {
-           bool isNumeric = double.TryParse(_searchString, out _);
-           bool isDateTime = DateTime.TryParse(_searchString, out _);
-
-           if (isNumeric)
-           {
-               filters.Add($"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}");
-           }
-           else if (isDateTime)
-           {
-               filters.Add($"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)");
-           }
-           else
-           {
-               filters.Add($"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ");
-           }
+            bool isNumeric = double.TryParse(_searchString, out _);
+            bool isDateTime = DateTime.TryParse(_searchString, out _);
+            if (isNumeric)
+                filters.Add($"Id eq {_searchString} or ProductId eq {_searchString} or Rating eq {_searchString} or HelpfulVotes eq {_searchString} or UserId eq {_searchString}");
+            else if (isDateTime)
+                filters.Add($"ReviewDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)");
+            else
+                filters.Add($"contains(tolower(CustomerName), '{_searchString}') or contains(tolower(CustomerEmail), '{_searchString}') or contains(tolower(Title), '{_searchString}') or contains(tolower(ReviewText), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ");
         }
-
         var combinedFilter = filters.Any() ? string.Join(" and ", filters.Select(f => $"({f})")) : null;
-
         try
         {
             var result = await AppService.ListProductReviewODataAsync(_pageSize, skip, orderby, combinedFilter, true, null);
             _cardData = new() { TotalItems = result?.Count ?? 0, Items = result?.Value ?? Enumerable.Empty<ProductReview>() };
-            _totalPages = (int)Math.Ceiling((double)_cardData.TotalItems / _pageSize);
+            _totalPages = (int)Math.Ceiling(_cardData.TotalItems / (double)_pageSize);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -694,10 +558,7 @@ else
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
-        
-        // Save view preference to localStorage
         await StorageService.SetAsync("productreview-view-preference", _isCardView);
-        
         if (_isCardView)
         {
             _currentPage = 1;

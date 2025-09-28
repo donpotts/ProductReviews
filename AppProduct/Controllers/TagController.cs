@@ -56,14 +56,14 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
             return Conflict();
         }
     
-        var product = tag.Product;
-        tag.Product = null;
+        var productIds = tag.Product.Select(y => y.Id).ToList();
+        tag.Product = new();
 
         await ctx.Tag.AddAsync(tag);
 
-        if (product != null)
+        if (productIds.Count > 0)
         {
-            var newValues = await ctx.Product.Where(x => product.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Product.Where(x => productIds.Contains(x.Id)).ToListAsync();
             tag.Product = [..newValues];
         }
 
@@ -161,11 +161,9 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
             {
                 try
                 {
-                    // Set timestamps
                     var now = DateTime.UtcNow;
                     if (tag.Id.HasValue && tag.Id.Value > 0)
                     {
-                        // Update existing tag
                         var existingTag = await ctx.Tag.FindAsync(tag.Id.Value);
                         if (existingTag != null)
                         {
@@ -175,13 +173,11 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
                             existingTag.Notes = tag.Notes;
                             existingTag.UserId = tag.UserId;
                             existingTag.ModifiedDate = now;
-                            
                             ctx.Tag.Update(existingTag);
                             updatedCount++;
                         }
                         else
                         {
-                            // ID provided but tag doesn't exist, create new one
                             tag.CreatedDate = now;
                             tag.ModifiedDate = now;
                             await ctx.Tag.AddAsync(tag);
@@ -190,32 +186,26 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
                     }
                     else
                     {
-                        // Check if tag with same name already exists
                         var existingByName = await ctx.Tag
                             .FirstOrDefaultAsync(c => c.Name == tag.Name && !string.IsNullOrEmpty(tag.Name));
-                        
                         if (existingByName != null)
                         {
-                            // Update existing tag by name
                             existingByName.Description = tag.Description;
                             existingByName.Color = tag.Color;
                             existingByName.Notes = tag.Notes;
                             existingByName.UserId = tag.UserId;
                             existingByName.ModifiedDate = now;
-                            
                             ctx.Tag.Update(existingByName);
                             updatedCount++;
                         }
                         else
                         {
-                            // Create new tag
                             tag.CreatedDate = now;
                             tag.ModifiedDate = now;
                             await ctx.Tag.AddAsync(tag);
                             addedCount++;
                         }
                     }
-                    
                     processedCount++;
                 }
                 catch (Exception ex)
@@ -228,28 +218,12 @@ public class TagController(ApplicationDbContext ctx) : ControllerBase
                     }
                 }
             }
-
             await ctx.SaveChangesAsync();
-
-            return Ok(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = errors,
-                Success = true
-            });
+            return Ok(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = errors, Success = true });
         }
         catch (Exception ex)
         {
-            return BadRequest(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = new[] { ex.Message },
-                Success = false
-            });
+            return BadRequest(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = new[] { ex.Message }, Success = false });
         }
     }
 }

@@ -231,26 +231,20 @@ else
     private async void OnAdd()
     {
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<AddBrand>("Add Brand", dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<AddBrand>("Add Brand", dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnEdit(Brand record)
     {
         DialogParameters<UpdateBrand> dialogParams = new() { { x => x.Id, record.Id!.Value } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<UpdateBrand>("Update Brand", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<UpdateBrand>("Update Brand", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnDelete(Brand record)
@@ -260,7 +254,6 @@ else
             "Are you sure you want to delete this record?",
             "Delete",
             "Cancel");
-
         if (result.GetValueOrDefault(false))
         {
             try
@@ -275,27 +268,11 @@ else
         }
     }
     
-    private void SearchChanged(string Value)
+    private void SearchChanged(string value)
     {
-        if (Value.EndsWith("."))
-        {
+        if (value.EndsWith('.'))
             return;
-        }
-        _searchString = Value.ToString().ToLower();
-        try
-        {
-            if (_searchString.Length > 18)
-            {
-                DateTimeOffset dateTime = DateTime.Parse(_searchString);
-                _searchString = dateTime.ToString("yyyy-MM-ddTHH:mm:ssK");
-                //Console.WriteLine(_searchString);
-            }
-        }
-        catch
-        {
-            return;
-        }
-        
+        _searchString = value.ToLowerInvariant();
         if (_isCardView)
         {
             _currentPage = 1;
@@ -336,26 +313,20 @@ else
             
             while (await csv.ReadAsync())
             {
-                var brand = new Brand();
-                
-                brand.Name = GetFieldValue(csv, "name") ?? GetFieldValue(csv, "Name");
-                brand.Description = GetFieldValue(csv, "description") ?? GetFieldValue(csv, "Description");
-                brand.LogoUrl = GetFieldValue(csv, "logourl") ?? GetFieldValue(csv, "LogoUrl");
-                brand.Website = GetFieldValue(csv, "website") ?? GetFieldValue(csv, "Website");
-                brand.Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes");
-                
+                var brand = new Brand
+                {
+                    Name = GetFieldValue(csv, "name") ?? GetFieldValue(csv, "Name"),
+                    Description = GetFieldValue(csv, "description") ?? GetFieldValue(csv, "Description"),
+                    LogoUrl = GetFieldValue(csv, "logourl") ?? GetFieldValue(csv, "LogoUrl"),
+                    Website = GetFieldValue(csv, "website") ?? GetFieldValue(csv, "Website"),
+                    Notes = GetFieldValue(csv, "notes") ?? GetFieldValue(csv, "Notes")
+                };
                 var userIdStr = GetFieldValue(csv, "userid") ?? GetFieldValue(csv, "UserId");
                 if (!string.IsNullOrWhiteSpace(userIdStr) && long.TryParse(userIdStr, out var userId))
-                {
                     brand.UserId = userId;
-                }
-                
                 var establishedStr = GetFieldValue(csv, "establisheddate") ?? GetFieldValue(csv, "EstablishedDate");
                 if (!string.IsNullOrWhiteSpace(establishedStr) && DateTime.TryParse(establishedStr, out var establishedDate))
-                {
                     brand.EstablishedDate = establishedDate;
-                }
-
                 brands.Add(brand);
             }
 
@@ -369,7 +340,6 @@ else
                     var processedCount = jsonElement.GetProperty("processedCount").GetInt32();
                     var addedCount = jsonElement.GetProperty("addedCount").GetInt32();
                     var updatedCount = jsonElement.GetProperty("updatedCount").GetInt32();
-                    
                     if (success)
                     {
                         Snackbar.Add($"Import successful: {processedCount} processed, {addedCount} added, {updatedCount} updated", Severity.Success);
@@ -399,56 +369,37 @@ else
 
     private string? GetFieldValue(CsvReader csv, string fieldName)
     {
-        try
-        {
-            return csv.GetField(fieldName);
-        }
-        catch
-        {
-            return null;
-        }
+        try { return csv.GetField(fieldName); } catch { return null; }
     }
 
     private async Task ExportAllToCSV()
     {
-        AppService.ODataResult<Brand>? result = null;
-
         try
         {
-            // Fetch all data from the OData service without any filters or restrictions
-            result = await AppService.ListBrandODataAsync(null, null, null, null, true, null);
-
-            if (result != null && result?.Value != null)
+            var result = await AppService.ListBrandODataAsync(null, null, null, null, true, null);
+            if (result?.Value != null)
             {
-                var ar = result?.Value.ToList().Select(x => new
+                var ar = result.Value.ToList().Select(x => new
                 {
-                        x.Id,
-    x.Name,
-    x.Description,
-    x.LogoUrl,
-    x.Website,
-    x.EstablishedDate,
-    x.CreatedDate,
-    x.ModifiedDate,
-    x.Notes,
-    x.UserId,
-
+                    x.Id,
+                    x.Name,
+                    x.Description,
+                    x.LogoUrl,
+                    x.Website,
+                    x.EstablishedDate,
+                    x.CreatedDate,
+                    x.ModifiedDate,
+                    x.Notes,
+                    x.UserId,
                 });
-
                 using var memoryStream = new MemoryStream();
                 using (var writer = new StreamWriter(memoryStream))
                 using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
                 {
-                    csv.WriteRecords(ar); // use CSVHelper to write the records to the CSV file
+                    csv.WriteRecords(ar);
                 }
-                // Convert MemoryStream to ByteArray
-                var byteArray = memoryStream.ToArray();
-
-                // Convert ByteArray to Base64String
-                var base64 = Convert.ToBase64String(byteArray);
-
-                // Trigger file download
-                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Brand_"+ System.DateTime.Now.ToString("yyyyMMddHHmmss") +".csv");
+                var base64 = Convert.ToBase64String(memoryStream.ToArray());
+                await JSRuntime.InvokeVoidAsync("downloadFromBase64", base64, "Brand_"+ DateTime.Now.ToString("yyyyMMddHHmmss") +".csv");
             }
         }
         catch (Exception ex)
@@ -459,49 +410,34 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Load view preference from localStorage
         var savedViewPreference = await StorageService.GetAsync<bool?>("brand-view-preference");
         if (savedViewPreference.HasValue)
-        {
             _isCardView = savedViewPreference.Value;
-        }
-        
         if (_isCardView)
-        {
             await LoadCardData();
-        }
     }
 
     private async Task LoadCardData()
     {
         var skip = (_currentPage - 1) * _pageSize;
         var orderby = "CreatedDate desc";
-        var filter = "";
-
-        if (_searchString?.Length > 0)
+        var filter = string.Empty;
+        if (!string.IsNullOrWhiteSpace(_searchString))
         {
            bool isNumeric = double.TryParse(_searchString, out _);
            bool isDateTime = DateTime.TryParse(_searchString, out _);
-
            if (isNumeric)
-           {
                filter = $"Id eq {_searchString} or UserId eq {_searchString}";
-           }
            else if (isDateTime)
-           {
                filter = $"EstablishedDate ge cast({_searchString},Edm.DateTimeOffset) or CreatedDate ge cast({_searchString},Edm.DateTimeOffset) or ModifiedDate ge cast({_searchString},Edm.DateTimeOffset)";
-           }
            else
-           {
                filter = $"contains(tolower(Name), '{_searchString}') or contains(tolower(Description), '{_searchString}') or contains(tolower(LogoUrl), '{_searchString}') or contains(tolower(Website), '{_searchString}') or contains(tolower(Notes), '{_searchString}') ";
-           }
         }
-
         try
         {
             var result = await AppService.ListBrandODataAsync(_pageSize, skip, orderby, filter, true, null);
             _cardData = new() { TotalItems = result?.Count ?? 0, Items = result?.Value ?? Enumerable.Empty<Brand>() };
-            _totalPages = (int)Math.Ceiling((double)_cardData.TotalItems / _pageSize);
+            _totalPages = (int)Math.Ceiling(_cardData.TotalItems / (double)_pageSize);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -519,10 +455,7 @@ else
     private async Task OnToggleView(bool isCardView)
     {
         _isCardView = isCardView;
-        
-        // Save view preference to localStorage
         await StorageService.SetAsync("brand-view-preference", _isCardView);
-        
         if (_isCardView)
         {
             _currentPage = 1;

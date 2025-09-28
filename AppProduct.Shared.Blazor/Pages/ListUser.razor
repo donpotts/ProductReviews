@@ -179,34 +179,27 @@ else
     private async void OnAdd()
     {
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<AddUser>("Add User", dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<AddUser>("Add User", dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnModifyRoles(ApplicationUserDto record)
     {
         DialogParameters<ModifyRoles> dialogParams = new() { { x => x.Id, record.Id } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        await DialogService.Show<ModifyRoles>("Modify Roles", dialogParams, dialogOptions).Result;
+        await (await DialogService.ShowAsync<ModifyRoles>("Modify Roles", dialogParams, dialogOptions)).Result;
     }
 
     private async void OnEdit(ApplicationUserDto record)
     {
         DialogParameters<UpdateUser> dialogParams = new() { { x => x.Id, record.Id } };
         DialogOptions dialogOptions = new() { FullWidth = true, CloseOnEscapeKey = true };
-
-        var result = await DialogService.Show<UpdateUser>("Update User", dialogParams, dialogOptions).Result;
-
+        var dialogRef = await DialogService.ShowAsync<UpdateUser>("Update User", dialogParams, dialogOptions);
+        var result = await dialogRef.Result;
         if (result != null && !result.Canceled)
-        {
             await (grid?.ReloadServerData() ?? Task.CompletedTask);
-        }
     }
 
     private async void OnDelete(ApplicationUserDto record)

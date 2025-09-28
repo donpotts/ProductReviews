@@ -1,4 +1,4 @@
-#pragma warning disable SKEXP0001, SKEXP0010
+#pragma warning disable SKEXP0001, SKEXP0010, CS0618
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Embeddings;
@@ -95,7 +95,6 @@ public static class SemanticKernelConfig
             Kernel? kernel,
             CancellationToken cancellationToken)
         {
-            // GitHub chat path lacks /v1 prefix; embeddings follows same pattern -> /embeddings
             var reqPayload = new EmbeddingRequest(_model, data);
             var json = JsonSerializer.Serialize(reqPayload, _jsonOptions);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -150,4 +149,4 @@ public static class SemanticKernelConfig
         }
     }
 }
-#pragma warning restore SKEXP0001, SKEXP0010
+#pragma warning restore SKEXP0001, SKEXP0010, CS0618

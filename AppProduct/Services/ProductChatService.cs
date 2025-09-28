@@ -1,4 +1,4 @@
-#pragma warning disable SKEXP0001
+#pragma warning disable SKEXP0001, CS0618
 using AppProduct.Data;
 using AppProduct.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -476,4 +476,4 @@ public class ProductChatService(
         return (answer, products);
     }
 }
-#pragma warning restore SKEXP0001
+#pragma warning restore SKEXP0001, CS0618

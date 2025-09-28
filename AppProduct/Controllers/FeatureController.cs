@@ -56,14 +56,14 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
             return Conflict();
         }
     
-        var product = feature.Product;
-        feature.Product = null;
+        var productIds = feature.Product.Select(y => y.Id).ToList();
+        feature.Product = new();
 
         await ctx.Feature.AddAsync(feature);
 
-        if (product != null)
+        if (productIds.Count > 0)
         {
-            var newValues = await ctx.Product.Where(x => product.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Product.Where(x => productIds.Contains(x.Id)).ToListAsync();
             feature.Product = [..newValues];
         }
 
@@ -161,11 +161,9 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
             {
                 try
                 {
-                    // Set timestamps
                     var now = DateTime.UtcNow;
                     if (feature.Id.HasValue && feature.Id.Value > 0)
                     {
-                        // Update existing feature
                         var existingFeature = await ctx.Feature.FindAsync(feature.Id.Value);
                         if (existingFeature != null)
                         {
@@ -176,13 +174,11 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
                             existingFeature.Notes = feature.Notes;
                             existingFeature.UserId = feature.UserId;
                             existingFeature.ModifiedDate = now;
-                            
                             ctx.Feature.Update(existingFeature);
                             updatedCount++;
                         }
                         else
                         {
-                            // ID provided but feature doesn't exist, create new one
                             feature.CreatedDate = now;
                             feature.ModifiedDate = now;
                             await ctx.Feature.AddAsync(feature);
@@ -191,33 +187,27 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
                     }
                     else
                     {
-                        // Check if feature with same name already exists
                         var existingByName = await ctx.Feature
                             .FirstOrDefaultAsync(c => c.Name == feature.Name && !string.IsNullOrEmpty(feature.Name));
-                        
                         if (existingByName != null)
                         {
-                            // Update existing feature by name
                             existingByName.Description = feature.Description;
                             existingByName.IconUrl = feature.IconUrl;
                             existingByName.Type = feature.Type;
                             existingByName.Notes = feature.Notes;
                             existingByName.UserId = feature.UserId;
                             existingByName.ModifiedDate = now;
-                            
                             ctx.Feature.Update(existingByName);
                             updatedCount++;
                         }
                         else
                         {
-                            // Create new feature
                             feature.CreatedDate = now;
                             feature.ModifiedDate = now;
                             await ctx.Feature.AddAsync(feature);
                             addedCount++;
                         }
                     }
-                    
                     processedCount++;
                 }
                 catch (Exception ex)
@@ -230,28 +220,12 @@ public class FeatureController(ApplicationDbContext ctx) : ControllerBase
                     }
                 }
             }
-
             await ctx.SaveChangesAsync();
-
-            return Ok(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = errors,
-                Success = true
-            });
+            return Ok(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = errors, Success = true });
         }
         catch (Exception ex)
         {
-            return BadRequest(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = new[] { ex.Message },
-                Success = false
-            });
+            return BadRequest(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = new[] { ex.Message }, Success = false });
         }
     }
 }

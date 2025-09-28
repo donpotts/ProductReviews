@@ -54,7 +54,7 @@
                 {
                     <MudCard Elevation="1" Class="pa-4">
                         <MudStack Spacing="2">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" JustifyContent="Justify.SpaceBetween">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
                                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                                     <StarRating Value="@review.Rating"
                                                ReadOnly="true"
@@ -113,7 +113,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public decimal? AverageRating { get; set; }
     [Parameter] public int TotalReviews { get; set; }
     [Parameter] public List<ProductReview> Reviews { get; set; } = new();

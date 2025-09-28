@@ -399,7 +399,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                 var service = new SessionService();
                 var session = await service.GetAsync(
                     request.StripeSessionId,
-                    new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
+                    new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown", "customer", "customer_details" } });
 
                 if (!string.Equals(session.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
                     return BadRequest(new { error = "Payment not completed" });
@@ -460,7 +460,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         {
             session = await service.GetAsync(
                 request.StripeSessionId,
-                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
+                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown", "customer", "customer_details" } });
         }
         catch (Exception ex)
         {
@@ -504,7 +504,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
     private async Task<Order> CreateOrderFromStripeSessionAsync(
         Session session,
         string userId,
-    SharedPaymentMethod paymentMethod,
+        SharedPaymentMethod paymentMethod,
         OrderStatus status,
         string? shippingAddressOverride,
         string? billingAddressOverride,
@@ -518,7 +518,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             var service = new SessionService();
             session = await service.GetAsync(
                 session.Id,
-                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown" } });
+                new SessionGetOptions { Expand = new List<string> { "line_items", "total_details.breakdown", "customer", "customer_details" } });
         }
 
         if (session.LineItems == null || !session.LineItems.Data.Any())
@@ -612,7 +612,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
 
         var shippingAddress = !string.IsNullOrWhiteSpace(shippingAddressOverride)
             ? shippingAddressOverride
-            : GetMetadataValue(session, "shipping_address") ?? session.ShippingDetails?.Address?.ToString();
+            : GetMetadataValue(session, "shipping_address") ?? FormatStripeAddress(session.CustomerDetails?.Address);
 
         var billingAddress = !string.IsNullOrWhiteSpace(billingAddressOverride)
             ? billingAddressOverride
@@ -663,6 +663,13 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         return order;
     }
 
+    private static string FormatStripeAddress(Stripe.Address? addr)
+    {
+        if (addr == null) return string.Empty;
+        var parts = new List<string?> { addr.Line1, addr.Line2, addr.City, addr.State, addr.PostalCode, addr.Country };
+        return string.Join(", ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+    }
+
     private static string? GetMetadataValue(Session session, string key)
     {
         if (session.Metadata == null)
@@ -692,7 +699,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
 
         var subtotal = cart.Items.Sum(item => (item.UnitPrice ?? 0) * item.Quantity);
 
-    TaxRateModel? taxRate = null;
+        TaxRateModel? taxRate = null;
         if (!string.IsNullOrWhiteSpace(request.BillingStateCode))
         {
             taxRate = await ctx.TaxRate

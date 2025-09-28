@@ -63,9 +63,56 @@
     </div>
 
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+    <!-- Extend (do not overwrite) MudBlazor's mudElementRef API and ensure getBoundingClientRect exists -->
+    <script>
+        (function () {
+            window.mudElementRef = window.mudElementRef || {};
+            const api = {
+                addOnBlurEvent: function (element, dotNetObjectRef, methodName) {
+                    if (element?.addEventListener) {
+                        element.addEventListener('blur', e => dotNetObjectRef?.invokeMethodAsync?.(methodName, e));
+                    }
+                },
+                addOnFocusEvent: function (element, dotNetObjectRef, methodName) {
+                    if (element?.addEventListener) {
+                        element.addEventListener('focus', e => dotNetObjectRef?.invokeMethodAsync?.(methodName, e));
+                    }
+                },
+                addOnKeyDownEvent: function (element, dotNetObjectRef, methodName) {
+                    if (element?.addEventListener) {
+                        element.addEventListener('keydown', e => dotNetObjectRef?.invokeMethodAsync?.(methodName, e.key, e.ctrlKey, e.shiftKey, e.altKey));
+                    }
+                },
+                addOnKeyUpEvent: function (element, dotNetObjectRef, methodName) {
+                    if (element?.addEventListener) {
+                        element.addEventListener('keyup', e => dotNetObjectRef?.invokeMethodAsync?.(methodName, e.key, e.ctrlKey, e.shiftKey, e.altKey));
+                    }
+                },
+                focus: function (element) { element?.focus?.(); },
+                select: function (element) { element?.select?.(); },
+                blur: function (element) { element?.blur?.(); },
+                getBoundingClientRect: function (element) {
+                    if (!element || !element.getBoundingClientRect) return null;
+                    const r = element.getBoundingClientRect();
+                    return {
+                        x: r.x, y: r.y, width: r.width, height: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+                        X: r.x, Y: r.y, Width: r.width, Height: r.height, Top: r.top, Bottom: r.bottom, Left: r.left, Right: r.right
+                    };
+                }
+            };
+            for (const k in api) {
+                if (!window.mudElementRef[k]) {
+                    window.mudElementRef[k] = api[k];
+                }
+            }
+        })();
+    </script>
+
     <script src="_content/AppProduct.Shared.Blazor/js/utils.js"></script>
-   <script>navigator.serviceWorker.register('service-worker.js');</script> 
-               <script src="_framework/blazor.webassembly.js"></script>
+    <!-- Service worker disabled -->
+    <!--<script>navigator.serviceWorker.register('service-worker.js');</script>-->
+    <script src="_framework/blazor.webassembly.js"></script>
 </body>
 
 </html>

@@ -56,14 +56,15 @@ public class CategoryController(ApplicationDbContext ctx) : ControllerBase
             return Conflict();
         }
     
-        var product = category.Product;
-        category.Product = null;
+        // Capture related product IDs and reset navigation collection instead of assigning null
+        var productIds = category.Product.Select(y => y.Id).ToList();
+        category.Product = new();
 
         await ctx.Category.AddAsync(category);
 
-        if (product != null)
+        if (productIds.Count > 0)
         {
-            var newValues = await ctx.Product.Where(x => product.Select(y => y.Id).Contains(x.Id)).ToListAsync();
+            var newValues = await ctx.Product.Where(x => productIds.Contains(x.Id)).ToListAsync();
             category.Product = [..newValues];
         }
 
@@ -161,11 +162,9 @@ public class CategoryController(ApplicationDbContext ctx) : ControllerBase
             {
                 try
                 {
-                    // Set timestamps
                     var now = DateTime.UtcNow;
                     if (category.Id.HasValue && category.Id.Value > 0)
                     {
-                        // Update existing category
                         var existingCategory = await ctx.Category.FindAsync(category.Id.Value);
                         if (existingCategory != null)
                         {
@@ -176,13 +175,11 @@ public class CategoryController(ApplicationDbContext ctx) : ControllerBase
                             existingCategory.Notes = category.Notes;
                             existingCategory.UserId = category.UserId;
                             existingCategory.ModifiedDate = now;
-                            
                             ctx.Category.Update(existingCategory);
                             updatedCount++;
                         }
                         else
                         {
-                            // ID provided but category doesn't exist, create new one
                             category.CreatedDate = now;
                             category.ModifiedDate = now;
                             await ctx.Category.AddAsync(category);
@@ -191,33 +188,27 @@ public class CategoryController(ApplicationDbContext ctx) : ControllerBase
                     }
                     else
                     {
-                        // Check if category with same name already exists
                         var existingByName = await ctx.Category
                             .FirstOrDefaultAsync(c => c.Name == category.Name && !string.IsNullOrEmpty(category.Name));
-                        
                         if (existingByName != null)
                         {
-                            // Update existing category by name
                             existingByName.Description = category.Description;
                             existingByName.IconUrl = category.IconUrl;
                             existingByName.ParentCategoryId = category.ParentCategoryId;
                             existingByName.Notes = category.Notes;
                             existingByName.UserId = category.UserId;
                             existingByName.ModifiedDate = now;
-                            
                             ctx.Category.Update(existingByName);
                             updatedCount++;
                         }
                         else
                         {
-                            // Create new category
                             category.CreatedDate = now;
                             category.ModifiedDate = now;
                             await ctx.Category.AddAsync(category);
                             addedCount++;
                         }
                     }
-                    
                     processedCount++;
                 }
                 catch (Exception ex)
@@ -230,28 +221,12 @@ public class CategoryController(ApplicationDbContext ctx) : ControllerBase
                     }
                 }
             }
-
             await ctx.SaveChangesAsync();
-
-            return Ok(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = errors,
-                Success = true
-            });
+            return Ok(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = errors, Success = true });
         }
         catch (Exception ex)
         {
-            return BadRequest(new 
-            { 
-                ProcessedCount = processedCount,
-                AddedCount = addedCount,
-                UpdatedCount = updatedCount,
-                Errors = new[] { ex.Message },
-                Success = false
-            });
+            return BadRequest(new { ProcessedCount = processedCount, AddedCount = addedCount, UpdatedCount = updatedCount, Errors = new[] { ex.Message }, Success = false });
         }
     }
 }

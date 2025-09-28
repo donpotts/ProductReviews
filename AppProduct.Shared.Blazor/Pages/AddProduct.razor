@@ -83,18 +83,18 @@
 
 @code {
     [CascadingParameter]
-    MudDialogInstance? MudDialog { get; set; }
+    IMudDialogInstance? MudDialog { get; set; }
 
     private Category[]? categoryArray;
-    private IEnumerable<long?>? categoryValues;
+    private IEnumerable<long?> categoryValues = Array.Empty<long?>();
     private Brand[]? brandArray;
-    private IEnumerable<long?>? brandValues;
+    private IEnumerable<long?> brandValues = Array.Empty<long?>();
     private Feature[]? featureArray;
-    private IEnumerable<long?>? featureValues;
+    private IEnumerable<long?> featureValues = Array.Empty<long?>();
     private Tag[]? tagArray;
-    private IEnumerable<long?>? tagValues;
+    private IEnumerable<long?> tagValues = Array.Empty<long?>();
     private ProductReview[]? productReviewArray;
-    private IEnumerable<long?>? productReviewValues;
+    private IEnumerable<long?> productReviewValues = Array.Empty<long?>();
     private Product record = new();
 
     private string GetAbsoluteUri(string uri)
@@ -104,32 +104,18 @@
             return uri;
         }
 
-        var baseUri = HttpClient.BaseAddress;
-
-        if (baseUri == null)
-        {
-            throw new Exception("Unable to determine base address");
-        }
-
-        Uri absolute = new(baseUri, uri);
-
-        return absolute.ToString();
+        var baseUri = HttpClient.BaseAddress ?? throw new Exception("Unable to determine base address");
+        return new Uri(baseUri, uri).ToString();
     }
 
     private string GetImageUrl(string? imageUrl)
     {
         if (string.IsNullOrEmpty(imageUrl))
             return string.Empty;
-            
-        // If it's already a full URL, return as-is
         if (imageUrl.StartsWith("http://") || imageUrl.StartsWith("https://"))
             return imageUrl;
-            
-        // If it starts with /, make it relative to base URL
         if (imageUrl.StartsWith("/"))
             return GetAbsoluteUri(imageUrl);
-            
-        // Otherwise prepend /
         return GetAbsoluteUri($"/{imageUrl}");
     }
 
@@ -145,11 +131,11 @@
             featureArray = await AppService.ListFeatureAsync();
             tagArray = await AppService.ListTagAsync();
             productReviewArray = await AppService.ListProductReviewAsync();
-            categoryValues = record?.Category?.Select(x => x.Id).ToHashSet() ?? [];
-            brandValues = record?.Brand?.Select(x => x.Id).ToHashSet() ?? [];
-            featureValues = record?.Feature?.Select(x => x.Id).ToHashSet() ?? [];
-            tagValues = record?.Tag?.Select(x => x.Id).ToHashSet() ?? [];
-            productReviewValues = record?.ProductReview?.Select(x => x.Id).ToHashSet() ?? [];
+            categoryValues = record.Category.Select(x => x.Id).ToHashSet();
+            brandValues = record.Brand.Select(x => x.Id).ToHashSet();
+            featureValues = record.Feature.Select(x => x.Id).ToHashSet();
+            tagValues = record.Tag.Select(x => x.Id).ToHashSet();
+            productReviewValues = record.ProductReview.Select(x => x.Id).ToHashSet();
         }
         catch(Exception ex)
         {
@@ -166,11 +152,11 @@
     {
         try
         {
-            record.Category = categoryValues?.Select(x => new Category { Id = x }).ToList();
-            record.Brand = brandValues?.Select(x => new Brand { Id = x }).ToList();
-            record.Feature = featureValues?.Select(x => new Feature { Id = x }).ToList();
-            record.Tag = tagValues?.Select(x => new Tag { Id = x }).ToList();
-            record.ProductReview = productReviewValues?.Select(x => new ProductReview { Id = x }).ToList();
+            record.Category = (categoryValues ?? Array.Empty<long?>()).Where(x=>x.HasValue).Select(x => new Category { Id = x }).ToList();
+            record.Brand = (brandValues ?? Array.Empty<long?>()).Where(x=>x.HasValue).Select(x => new Brand { Id = x }).ToList();
+            record.Feature = (featureValues ?? Array.Empty<long?>()).Where(x=>x.HasValue).Select(x => new Feature { Id = x }).ToList();
+            record.Tag = (tagValues ?? Array.Empty<long?>()).Where(x=>x.HasValue).Select(x => new Tag { Id = x }).ToList();
+            record.ProductReview = (productReviewValues ?? Array.Empty<long?>()).Where(x=>x.HasValue).Select(x => new ProductReview { Id = x }).ToList();
             await AppService.InsertProductAsync(record);
             MudDialog?.Close();
         }
