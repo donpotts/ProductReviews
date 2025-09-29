@@ -1,0 +1,56 @@
+[
+  {
+    "Id": 1,
+    "Name": "IT Support",
+    "Description": "Technical support and troubleshooting services",
+    "IconClass": "fas fa-headset",
+    "ColorCode": "#4CAF50",
+    "IsActive": true,
+    "SortOrder": 1
+  },
+  {
+    "Id": 2,
+    "Name": "System Consulting",
+    "Description": "Strategic IT consulting and architecture services",
+    "IconClass": "fas fa-chart-line",
+    "ColorCode": "#2196F3",
+    "IsActive": true,
+    "SortOrder": 2
+  },
+  {
+    "Id": 3,
+    "Name": "Onsite Maintenance",
+    "Description": "Physical hardware maintenance and repairs",
+    "IconClass": "fas fa-tools",
+    "ColorCode": "#FF9800",
+    "IsActive": true,
+    "SortOrder": 3
+  },
+  {
+    "Id": 4,
+    "Name": "Software Development",
+    "Description": "Custom software development and programming",
+    "IconClass": "fas fa-code",
+    "ColorCode": "#9C27B0",
+    "IsActive": true,
+    "SortOrder": 4
+  },
+  {
+    "Id": 5,
+    "Name": "Security Services",
+    "Description": "Cybersecurity assessment and implementation",
+    "IconClass": "fas fa-shield-alt",
+    "ColorCode": "#F44336",
+    "IsActive": true,
+    "SortOrder": 5
+  },
+  {
+    "Id": 6,
+    "Name": "Training",
+    "Description": "Technical training and certification programs",
+    "IconClass": "fas fa-graduation-cap",
+    "ColorCode": "#607D8B",
+    "IsActive": true,
+    "SortOrder": 6
+  }
+]

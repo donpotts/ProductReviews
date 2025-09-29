@@ -79,5 +79,6 @@ public enum PaymentMethod
 {
     [EnumMember] CreditCard = 0,
     [EnumMember] Cash = 1,
-    [EnumMember] PurchaseOrder = 2
+    [EnumMember] PurchaseOrder = 2,
+    [EnumMember] PayPal = 3
 }

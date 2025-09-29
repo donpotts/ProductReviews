@@ -1,0 +1,236 @@
+@using AppProduct.Shared.Models
+@using MudBlazor
+@inject AppService AppService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(IsEditMode ? "Edit Expense" : "Add Expense")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudStack Spacing="3">
+                <MudDatePicker @bind-Date="expenseDate" 
+                              Label="Expense Date" 
+                              Required="true"
+                              MaxDate="DateTime.Today"
+                              Variant="Variant.Outlined" />
+
+                <MudSelect @bind-Value="expenseType" 
+                          Label="Expense Type" 
+                          Required="true"
+                          Variant="Variant.Outlined"
+                          T="ServiceExpenseType">
+                    @foreach (ServiceExpenseType type in Enum.GetValues<ServiceExpenseType>())
+                    {
+                        <MudSelectItem Value="@type">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@GetExpenseIcon(type)" Size="Size.Small" />
+                                <MudText>@type.ToString()</MudText>
+                            </MudStack>
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField @bind-Value="description" 
+                             Label="Description" 
+                             Required="true"
+                             Variant="Variant.Outlined"
+                             Lines="2"
+                             Placeholder="Brief description of the expense" />
+
+                <MudNumericField @bind-Value="amount" 
+                                Label="Amount" 
+                                Required="true"
+                                Variant="Variant.Outlined"
+                                Format="C"
+                                Min="0.01m"
+                                T="decimal" />
+
+                <MudTextField @bind-Value="vendor" 
+                             Label="Vendor/Merchant" 
+                             Variant="Variant.Outlined"
+                             Placeholder="e.g., Hilton Hotel, Enterprise Rent-A-Car" />
+
+                <MudTextField @bind-Value="location" 
+                             Label="Location" 
+                             Variant="Variant.Outlined"
+                             Placeholder="City, State where expense occurred" />
+
+                <MudTextField @bind-Value="receiptUrl" 
+                             Label="Receipt URL" 
+                             Variant="Variant.Outlined"
+                             Placeholder="Link to receipt image or document" />
+
+                <MudTextField @bind-Value="notes" 
+                             Label="Notes" 
+                             Variant="Variant.Outlined"
+                             Lines="3"
+                             Placeholder="Additional details or justification" />
+
+                @if (IsEditMode)
+                {
+                    <MudSelect @bind-Value="approvalStatus" 
+                              Label="Approval Status" 
+                              Variant="Variant.Outlined"
+                              T="ServiceExpenseStatus">
+                        @foreach (ServiceExpenseStatus status in Enum.GetValues<ServiceExpenseStatus>())
+                        {
+                            <MudSelectItem Value="@status">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@GetStatusIcon(status)" Size="Size.Small" />
+                                    <MudText>@status.ToString()</MudText>
+                                </MudStack>
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    @if (approvalStatus == ServiceExpenseStatus.Rejected)
+                    {
+                        <MudTextField @bind-Value="rejectionReason" 
+                                     Label="Rejection Reason" 
+                                     Variant="Variant.Outlined"
+                                     Lines="2"
+                                     Placeholder="Reason for rejection" />
+                    }
+                }
+
+                @if (isSubmitting)
+                {
+                    <MudProgressLinear Indeterminate="true" />
+                }
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" 
+                  Color="Color.Primary" 
+                  OnClick="Save"
+                  Disabled="@(!isValid || isSubmitting)">
+            @(IsEditMode ? "Update" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public long ServiceOrderId { get; set; }
+    [Parameter] public ServiceExpense? Expense { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+
+    private MudForm form = null!;
+    private bool isValid;
+    private bool isSubmitting;
+
+    private DateTime? expenseDate = DateTime.Today;
+    private ServiceExpenseType expenseType = ServiceExpenseType.Meals;
+    private string description = "";
+    private decimal amount = 0;
+    private string vendor = "";
+    private string location = "";
+    private string receiptUrl = "";
+    private string notes = "";
+    private ServiceExpenseStatus approvalStatus = ServiceExpenseStatus.Pending;
+    private string rejectionReason = "";
+
+    protected override void OnInitialized()
+    {
+        if (IsEditMode && Expense != null)
+        {
+            LoadExpenseData();
+        }
+    }
+
+    private void LoadExpenseData()
+    {
+        if (Expense == null) return;
+
+        expenseDate = Expense.ExpenseDate;
+        expenseType = Expense.ExpenseType;
+        description = Expense.Description ?? "";
+        amount = Expense.Amount;
+        vendor = Expense.Vendor ?? "";
+        location = Expense.Location ?? "";
+        receiptUrl = Expense.ReceiptUrl ?? "";
+        notes = Expense.Notes ?? "";
+        approvalStatus = Expense.ApprovalStatus;
+        rejectionReason = Expense.RejectionReason ?? "";
+    }
+
+    private async Task Save()
+    {
+        if (!isValid) return;
+
+        try
+        {
+            isSubmitting = true;
+
+            var expense = IsEditMode && Expense != null ? Expense : new ServiceExpense();
+            
+            expense.ServiceOrderId = ServiceOrderId;
+            expense.ExpenseDate = expenseDate;
+            expense.ExpenseType = expenseType;
+            expense.Description = description.Trim();
+            expense.Amount = amount;
+            expense.Vendor = string.IsNullOrWhiteSpace(vendor) ? null : vendor.Trim();
+            expense.Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+            expense.ReceiptUrl = string.IsNullOrWhiteSpace(receiptUrl) ? null : receiptUrl.Trim();
+            expense.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+            expense.ApprovalStatus = approvalStatus;
+            expense.RejectionReason = approvalStatus == ServiceExpenseStatus.Rejected && !string.IsNullOrWhiteSpace(rejectionReason) 
+                ? rejectionReason.Trim() 
+                : null;
+
+            if (IsEditMode)
+            {
+                expense.ModifiedDate = DateTime.UtcNow;
+                await AppService.UpdateServiceExpenseAsync(expense);
+            }
+            else
+            {
+                expense.CreatedDate = DateTime.UtcNow;
+                expense.ModifiedDate = DateTime.UtcNow;
+                await AppService.CreateServiceExpenseAsync(expense);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving expense: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private string GetExpenseIcon(ServiceExpenseType type) => type switch
+    {
+        ServiceExpenseType.Meals => Icons.Material.Filled.Restaurant,
+        ServiceExpenseType.Hotel => Icons.Material.Filled.Hotel,
+        ServiceExpenseType.CarRental => Icons.Material.Filled.DirectionsCar,
+        ServiceExpenseType.Airfare => Icons.Material.Filled.Flight,
+        ServiceExpenseType.LocalTransport => Icons.Material.Filled.DirectionsBus,
+        ServiceExpenseType.Materials => Icons.Material.Filled.Build,
+        ServiceExpenseType.Parking => Icons.Material.Filled.LocalParking,
+        ServiceExpenseType.Other => Icons.Material.Filled.Receipt,
+        _ => Icons.Material.Filled.Receipt
+    };
+
+    private string GetStatusIcon(ServiceExpenseStatus status) => status switch
+    {
+        ServiceExpenseStatus.Pending => Icons.Material.Filled.HourglassEmpty,
+        ServiceExpenseStatus.Approved => Icons.Material.Filled.CheckCircle,
+        ServiceExpenseStatus.Rejected => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.HourglassEmpty
+    };
+}

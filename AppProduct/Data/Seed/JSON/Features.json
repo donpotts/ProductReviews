@@ -1,0 +1,137 @@
+[
+  {
+    "Id": 1,
+    "Name": "Memory",
+    "Description": "System memory capacity",
+    "IconUrl": "/icons/memory.svg",
+    "Type": "Numeric",
+    "Notes": "RAM specifications",
+    "UserId": 1
+  },
+  {
+    "Id": 2,
+    "Name": "Storage",
+    "Description": "Storage capacity",
+    "IconUrl": "/icons/storage.svg",
+    "Type": "Numeric",
+    "Notes": "Hard drive and SSD capacity",
+    "UserId": 1
+  },
+  {
+    "Id": 3,
+    "Name": "Wireless Charging",
+    "Description": "Supports wireless charging capability",
+    "IconUrl": "/icons/wireless.svg",
+    "Type": "Boolean",
+    "Notes": "Contactless charging feature",
+    "UserId": 1
+  },
+  {
+    "Id": 4,
+    "Name": "Display Size",
+    "Description": "Screen size in inches",
+    "IconUrl": "/icons/display.svg",
+    "Type": "Numeric",
+    "Notes": "Monitor or screen dimensions",
+    "UserId": 1
+  },
+  {
+    "Id": 5,
+    "Name": "Color",
+    "Description": "Product color option",
+    "IconUrl": "/icons/color.svg",
+    "Type": "Text",
+    "Notes": "Available color variants",
+    "UserId": 1
+  },
+  {
+    "Id": 6,
+    "Name": "Battery Life",
+    "Description": "Battery duration in hours",
+    "IconUrl": "/icons/battery.svg",
+    "Type": "Numeric",
+    "Notes": "Power consumption specs",
+    "UserId": 1
+  },
+  {
+    "Id": 7,
+    "Name": "Weight",
+    "Description": "Product weight in pounds",
+    "IconUrl": "/icons/weight.svg",
+    "Type": "Numeric",
+    "Notes": "Physical weight measurement",
+    "UserId": 1
+  },
+  {
+    "Id": 8,
+    "Name": "Processor",
+    "Description": "CPU type and specifications",
+    "IconUrl": "/icons/processor.svg",
+    "Type": "Text",
+    "Notes": "Central processing unit details",
+    "UserId": 1
+  },
+  {
+    "Id": 9,
+    "Name": "Graphics",
+    "Description": "GPU specifications",
+    "IconUrl": "/icons/graphics.svg",
+    "Type": "Text",
+    "Notes": "Graphics processing capabilities",
+    "UserId": 1
+  },
+  {
+    "Id": 10,
+    "Name": "Operating System",
+    "Description": "Pre-installed OS",
+    "IconUrl": "/icons/os.svg",
+    "Type": "Text",
+    "Notes": "Software platform",
+    "UserId": 1
+  },
+  {
+    "Id": 11,
+    "Name": "Bluetooth",
+    "Description": "Bluetooth connectivity support",
+    "IconUrl": "/icons/bluetooth.svg",
+    "Type": "Boolean",
+    "Notes": "Wireless communication feature",
+    "UserId": 1
+  },
+  {
+    "Id": 12,
+    "Name": "WiFi",
+    "Description": "WiFi network connectivity",
+    "IconUrl": "/icons/wifi.svg",
+    "Type": "Boolean",
+    "Notes": "Wireless internet capability",
+    "UserId": 1
+  },
+  {
+    "Id": 13,
+    "Name": "Noise Cancelling",
+    "Description": "Active noise cancellation technology",
+    "IconUrl": "/icons/noise-cancel.svg",
+    "Type": "Boolean",
+    "Notes": "Audio noise reduction feature",
+    "UserId": 1
+  },
+  {
+    "Id": 14,
+    "Name": "Water Resistance",
+    "Description": "Water protection rating",
+    "IconUrl": "/icons/water.svg",
+    "Type": "Text",
+    "Notes": "Liquid damage protection",
+    "UserId": 1
+  },
+  {
+    "Id": 15,
+    "Name": "Camera Quality",
+    "Description": "Camera resolution and features",
+    "IconUrl": "/icons/camera.svg",
+    "Type": "Text",
+    "Notes": "Photography capabilities",
+    "UserId": 1
+  }
+]

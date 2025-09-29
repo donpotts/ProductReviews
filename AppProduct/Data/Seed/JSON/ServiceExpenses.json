@@ -1,0 +1,68 @@
+[
+  {
+    "Id": 1,
+    "ServiceOrderId": 1,
+    "ExpenseType": "Meals",
+    "Description": "Team lunch during onsite assessment",
+    "Amount": 85.50,
+    "ExpenseDate": "2024-09-04T00:00:00Z",
+    "ApprovalStatus": "Approved",
+    "ApprovedDate": "2024-09-05T00:00:00Z",
+    "ApprovedBy": "Manager",
+    "IsReimbursable": true,
+    "Vendor": "Local Restaurant",
+    "Location": "Client Site"
+  },
+  {
+    "Id": 2,
+    "ServiceOrderId": 1,
+    "ExpenseType": "LocalTransport",
+    "Description": "Taxi fare to client location",
+    "Amount": 32.75,
+    "ExpenseDate": "2024-09-03T00:00:00Z",
+    "ApprovalStatus": "Approved",
+    "ApprovedDate": "2024-09-05T00:00:00Z",
+    "ApprovedBy": "Manager",
+    "IsReimbursable": true,
+    "Vendor": "City Taxi",
+    "Location": "Client Site"
+  },
+  {
+    "Id": 3,
+    "ServiceOrderId": 1,
+    "ExpenseType": "Materials",
+    "Description": "Network testing equipment",
+    "Amount": 125.00,
+    "ExpenseDate": "2024-09-02T00:00:00Z",
+    "ApprovalStatus": "Approved",
+    "ApprovedDate": "2024-09-03T00:00:00Z",
+    "ApprovedBy": "Manager",
+    "IsReimbursable": true,
+    "Vendor": "Tech Supply Co",
+    "Location": "Office"
+  },
+  {
+    "Id": 4,
+    "ServiceOrderId": 2,
+    "ExpenseType": "Parking",
+    "Description": "Parking at client building",
+    "Amount": 15.00,
+    "ExpenseDate": "2024-09-13T00:00:00Z",
+    "ApprovalStatus": "Pending",
+    "IsReimbursable": true,
+    "Vendor": "Client Building Parking",
+    "Location": "Client Site"
+  },
+  {
+    "Id": 5,
+    "ServiceOrderId": 2,
+    "ExpenseType": "Meals",
+    "Description": "Working lunch during server maintenance",
+    "Amount": 28.50,
+    "ExpenseDate": "2024-09-14T00:00:00Z",
+    "ApprovalStatus": "Pending",
+    "IsReimbursable": true,
+    "Vendor": "Sandwich Shop",
+    "Location": "Client Site"
+  }
+]

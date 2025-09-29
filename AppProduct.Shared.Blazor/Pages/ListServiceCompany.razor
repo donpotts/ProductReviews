@@ -1,0 +1,193 @@
+@page "/service-companies"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+<PageTitle>Manage Service Companies</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.Business" Class="mr-2" />
+                Manage Service Companies
+            </MudText>
+            <MudButton Variant="Variant.Filled" 
+                      Color="Color.Primary" 
+                      StartIcon="@Icons.Material.Filled.Add"
+                      OnClick="NavigateToAdd">
+                Add Company
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Class="mb-4">
+                <MudTextField @bind-Value="searchTerm" 
+                            Label="Search companies..." 
+                            Variant="Variant.Outlined"
+                            Adornment="Adornment.End" 
+                            AdornmentIcon="@Icons.Material.Filled.Search"
+                            OnKeyUp="OnSearchKeyUp"
+                            Class="flex-grow-1" />
+                <MudButton Variant="Variant.Outlined" OnClick="LoadCompanies">Refresh</MudButton>
+            </MudStack>
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="mb-4" />
+            }
+
+            @if (companies == null)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else if (!companies.Any())
+            {
+                <MudPaper Class="pa-8" Elevation="1">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6">No companies found</MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="NavigateToAdd">
+                            Add Your First Company
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <MudDataGrid Items="@filteredCompanies" 
+                           Loading="@isLoading"
+                           Hover="true" 
+                           Breakpoint="Breakpoint.Sm"
+                           Height="600px"
+                           FixedHeader="true">
+                    <Columns>
+                        <PropertyColumn Property="x => x.Name" Title="Company Name" />
+                        <PropertyColumn Property="x => x.ContactEmail" Title="Email" />
+                        <PropertyColumn Property="x => x.ContactPhone" Title="Phone" />
+                        <PropertyColumn Property="x => x.YearsOfExperience" Title="Experience" />
+                        <PropertyColumn Property="x => x.IsActive" Title="Active">
+                            <CellTemplate>
+                                <MudChip Color="@(context.Item.IsActive ? Color.Success : Color.Default)" 
+                                        Size="Size.Small">
+                                    @(context.Item.IsActive ? "Yes" : "No")
+                                </MudChip>
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.IsCertified" Title="Certified">
+                            <CellTemplate>
+                                <MudChip Color="@(context.Item.IsCertified ? Color.Success : Color.Default)" 
+                                        Size="Size.Small">
+                                    @(context.Item.IsCertified ? "Yes" : "No")
+                                </MudChip>
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.AverageRating" Title="Rating" Format="F1" />
+                        <PropertyColumn Property="x => x.CreatedDate" Title="Created" Format="yyyy-MM-dd" />
+                        <TemplateColumn CellClass="d-flex justify-end" Sortable="false">
+                            <CellTemplate>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                 Color="Color.Primary" 
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => NavigateToEdit(context.Item.Id))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error" 
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => DeleteCompany(context.Item))" />
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private IEnumerable<ServiceCompany>? companies;
+    private IEnumerable<ServiceCompany> filteredCompanies => companies?.Where(FilterCompany) ?? Enumerable.Empty<ServiceCompany>();
+    private string searchTerm = string.Empty;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompanies();
+    }
+
+    private async Task LoadCompanies()
+    {
+        isLoading = true;
+        try
+        {
+            companies = await AppService.GetServiceCompaniesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading companies: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool FilterCompany(ServiceCompany company)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return true;
+
+        var searchLower = searchTerm.ToLowerInvariant();
+        return (company.Name?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (company.Description?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (company.ContactEmail?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (company.Specialties?.ToLowerInvariant().Contains(searchLower) ?? false);
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToAdd()
+    {
+        Navigation.NavigateTo("/service-companies/add");
+    }
+
+    private void NavigateToEdit(long? companyId)
+    {
+        if (companyId.HasValue)
+        {
+            Navigation.NavigateTo($"/service-companies/edit/{companyId}");
+        }
+    }
+
+    private async Task DeleteCompany(ServiceCompany company)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Delete Service Company",
+            $"Are you sure you want to delete '{company.Name}'?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await AppService.DeleteServiceCompanyAsync(company.Id ?? 0);
+                Snackbar.Add("Company deleted successfully", Severity.Success);
+                await LoadCompanies();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting company: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

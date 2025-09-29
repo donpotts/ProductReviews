@@ -1,0 +1,50 @@
+[
+  {
+    "Id": 1,
+    "Name": "TechCorp Solutions",
+    "Description": "Leading provider of enterprise IT solutions and consulting services",
+    "ContactEmail": "contact@techcorp.com",
+    "ContactPhone": "(555) 123-4567",
+    "Website": "https://www.techcorp.com",
+    "Address": "123 Tech Boulevard, Silicon Valley, CA 94000",
+    "IsActive": true,
+    "IsCertified": true,
+    "Certifications": "ISO 27001, Microsoft Gold Partner, Cisco Premier Partner",
+    "YearsOfExperience": 15,
+    "Specialties": "Enterprise Architecture, Cloud Migration, Security",
+    "AverageRating": 4.8,
+    "TotalReviews": 127
+  },
+  {
+    "Id": 2,
+    "Name": "DevPro Services",
+    "Description": "Specialized software development and DevOps consulting",
+    "ContactEmail": "hello@devpro.com",
+    "ContactPhone": "(555) 987-6543",
+    "Website": "https://www.devpro.com",
+    "Address": "456 Developer Street, Austin, TX 73301",
+    "IsActive": true,
+    "IsCertified": true,
+    "Certifications": "AWS Advanced Partner, Azure Expert",
+    "YearsOfExperience": 8,
+    "Specialties": "Web Development, Mobile Apps, DevOps, Cloud",
+    "AverageRating": 4.6,
+    "TotalReviews": 89
+  },
+  {
+    "Id": 3,
+    "Name": "SecureIT Partners",
+    "Description": "Cybersecurity specialists and compliance experts",
+    "ContactEmail": "info@secureit.com",
+    "ContactPhone": "(555) 456-7890",
+    "Website": "https://www.secureit.com",
+    "Address": "789 Security Lane, Washington, DC 20001",
+    "IsActive": true,
+    "IsCertified": true,
+    "Certifications": "CISSP, CISM, SOC 2 Type II",
+    "YearsOfExperience": 12,
+    "Specialties": "Penetration Testing, Compliance, Security Audits",
+    "AverageRating": 4.9,
+    "TotalReviews": 156
+  }
+]

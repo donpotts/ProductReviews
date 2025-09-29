@@ -198,4 +198,68 @@ public class NotificationService : INotificationService
             _logger.LogInformation("SSE stream ended for user {UserId}", userId);
         }
     }
+
+    // Service-specific notification methods
+    public async Task<Notification> NotifyServiceAddedAsync(long? userId, Service service)
+    {
+        var companyName = service.ServiceCompany?.FirstOrDefault()?.Name ?? "Unknown Provider";
+        return await CreateNotificationAsync(
+            "New Service Added",
+            $"A new service '{service.Name}' has been added to the catalog.",
+            "Success",
+            userId,
+            $"/services/{service.Id}",
+            $"Service: {service.Name}, Provider: {companyName}"
+        );
+    }
+
+    public async Task<Notification> NotifyServiceUpdatedAsync(long? userId, Service service)
+    {
+        var companyName = service.ServiceCompany?.FirstOrDefault()?.Name ?? "Unknown Provider";
+        return await CreateNotificationAsync(
+            "Service Updated",
+            $"The service '{service.Name}' has been updated.",
+            "Info",
+            userId,
+            $"/services/{service.Id}",
+            $"Service: {service.Name}, Provider: {companyName}"
+        );
+    }
+
+    public async Task<Notification> NotifyServiceReviewAddedAsync(long? userId, ServiceReview review, Service service)
+    {
+        return await CreateNotificationAsync(
+            "New Service Review",
+            $"A new review has been added for '{service.Name}' with {review.Rating} stars.",
+            "Info",
+            userId,
+            $"/services/{service.Id}",
+            $"Review by: {review.CustomerName ?? "Anonymous"}, Rating: {review.Rating}/5"
+        );
+    }
+
+    public async Task<Notification> NotifyServiceOrderCreatedAsync(long? userId, ServiceOrder order)
+    {
+        var totalAmount = order.Items.Sum(i => (i.HoursEstimated ?? 1) * (i.UnitPrice ?? 0));
+        return await CreateNotificationAsync(
+            "Service Order Created",
+            $"Your service order #{order.Id} has been created with {order.Items.Count} items.",
+            "Success",
+            userId,
+            $"/orders/{order.Id}",
+            $"Total: ${totalAmount:F2}, Items: {order.Items.Count}"
+        );
+    }
+
+    public async Task<Notification> NotifyServiceExpenseAddedAsync(long? userId, ServiceExpense expense)
+    {
+        return await CreateNotificationAsync(
+            "Service Expense Logged",
+            $"A new expense of ${expense.Amount:F2} has been logged.",
+            "Info",
+            userId,
+            $"/expenses/{expense.Id}",
+            $"Type: {expense.ExpenseType}, Amount: ${expense.Amount:F2}, Date: {expense.ExpenseDate:yyyy-MM-dd}"
+        );
+    }
 }

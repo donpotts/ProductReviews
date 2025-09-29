@@ -1,0 +1,142 @@
+@page "/services"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Service Catalog</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Build" Class="mr-2" />
+        Service Catalog
+    </MudText>
+
+    <ServiceSearch OnSearchResults="HandleSearchResults" OnSearching="HandleSearching" />
+
+    @if (isSearching)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mb-4" />
+    }
+
+    @if (services == null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (!services.Any())
+    {
+        <MudPaper Class="pa-8" Elevation="2">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6">No services found</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center">
+                    Try adjusting your search criteria or browse all services.
+                </MudText>
+            </MudStack>
+        </MudPaper>
+    }
+    else
+    {
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudText Typo="Typo.body1">
+                Showing @services.Length service@(services.Length != 1 ? "s" : "")
+            </MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.body2">View:</MudText>
+                <MudToggleIconButton @bind-Toggled="isGridView"
+                                    Icon="@Icons.Material.Filled.ViewList" ToggledIcon="@Icons.Material.Filled.GridView"
+                                    />
+            </MudStack>
+        </MudStack>
+
+        @if (isGridView)
+        {
+            <MudGrid Spacing="4">
+                @foreach (var service in services)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <ServiceCard Service="service" OnRequestService="RequestService" />
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        else
+        {
+            <MudStack Spacing="2">
+                @foreach (var service in services)
+                {
+                    <ServiceListItem Service="service" OnRequestService="RequestService" />
+                }
+            </MudStack>
+        }
+    }
+</MudContainer>
+
+@code {
+    private Service[]? services;
+    private bool isSearching = false;
+    private bool isGridView = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    private async Task LoadServices()
+    {
+        try
+        {
+            var result = await AppService.ListServiceODataAsync(expand: "ServiceCategory,ServiceCompany,ServiceReview");
+            services = result?.Value?.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading services: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleSearchResults(Service[]? results)
+    {
+        isSearching = false;
+        services = results;
+        
+        if (results == null)
+        {
+            Snackbar.Add("Error searching services", Severity.Error);
+            await LoadServices(); // Fallback to all services
+        }
+    }
+
+    private Task HandleSearching()
+    {
+        isSearching = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task RequestService(Service service)
+    {
+        if (service.Id == null) return;
+        
+        var parameters = new DialogParameters<ServiceRequestDialog>
+        {
+            { x => x.Service, service }
+        };
+        
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = true
+        };
+        
+        var dialog = await DialogService.ShowAsync<ServiceRequestDialog>($"Request Service", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result is { Canceled: false, Data: ServiceOrder })
+        {
+            // Optionally refresh the page or navigate somewhere
+            // For now, just show the success message which is already shown in the dialog
+        }
+    }
+}

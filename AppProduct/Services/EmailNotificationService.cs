@@ -3,6 +3,8 @@ using Microsoft.Graph.Models;
 using Azure.Identity;
 using AppProduct.Shared.Models;
 using System.Net;
+using System.Linq; // added
+using System.Text; // new
 
 namespace AppProduct.Services;
 
@@ -15,6 +17,13 @@ public interface IEmailNotificationService
     Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string customerEmail);
     Task SendInvoiceEmailAsync(Order order, string customerEmail, byte[] invoicePdf);
     Task SendCashOrderEmailAsync(Order order, string customerEmail, byte[] deliveryReceiptPdf);
+    
+    // Service notifications
+    Task SendNewServiceReviewNotificationAsync(ServiceReview review, Service service);
+    Task SendServiceReviewResponseNotificationAsync(ServiceReview review, Service service);
+    Task SendServiceOrderConfirmationAsync(ServiceOrder order, string customerEmail);
+    Task SendServiceOrderStatusUpdateAsync(ServiceOrder order, string customerEmail, ServiceOrderStatus oldStatus);
+    Task SendServiceCreatedNotificationAsync(Service service); // NEW
 }
 
 public class EmailNotificationService : IEmailNotificationService
@@ -55,6 +64,7 @@ public class EmailNotificationService : IEmailNotificationService
         }
     }
 
+    // ---------- Product Review Emails ----------
     public async Task SendNewReviewNotificationAsync(ProductReview review, Product product)
     {
         if (_graphServiceClient == null)
@@ -84,40 +94,18 @@ public class EmailNotificationService : IEmailNotificationService
             var message = new Message
             {
                 Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = body
-                },
-                ToRecipients = new List<Recipient>()
-                {
-                    new Recipient
-                    {
-                        EmailAddress = new EmailAddress
-                        {
-                            Address = adminEmail
-                        }
-                    }
-                },
-                ReplyTo = new List<Recipient>()
-                {
-                    new Recipient
-                    {
-                        EmailAddress = new EmailAddress
-                        {
-                            Address = review.CustomerEmail,
-                            Name = review.CustomerName
-                        }
-                    }
-                }
+                Body = new ItemBody { ContentType = BodyType.Html, Content = body },
+                ToRecipients = new List<Recipient>{ new() { EmailAddress = new EmailAddress { Address = adminEmail } } },
+                ReplyTo = new List<Recipient>{ new() { EmailAddress = new EmailAddress { Address = review.CustomerEmail, Name = review.CustomerName } } }
             };
 
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            if (string.IsNullOrWhiteSpace(senderEmail))
             {
-                Message = message
-            });
-
+                _logger.LogWarning("SenderEmail not configured");
+                return;
+            }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = message });
             _logger.LogInformation("New review notification sent successfully for review ID {ReviewId}", review.Id);
         }
         catch (Exception ex)
@@ -128,25 +116,16 @@ public class EmailNotificationService : IEmailNotificationService
 
     public async Task SendReviewResponseNotificationAsync(ProductReview review, Product product)
     {
-        if (_graphServiceClient == null)
+        if (_graphServiceClient == null || string.IsNullOrEmpty(review.CustomerEmail))
         {
-            _logger.LogWarning("Microsoft Graph client is not initialized. Cannot send email notification.");
             return;
         }
 
         try
         {
-            if (string.IsNullOrEmpty(review.CustomerEmail))
-            {
-                _logger.LogWarning("Customer email is not available for review ID {ReviewId}. Cannot send response notification.", review.Id);
-                return;
-            }
-
             var productDisplayName = product.GetDisplayName();
             if (string.IsNullOrWhiteSpace(productDisplayName))
-            {
                 productDisplayName = product.Name ?? "your product";
-            }
 
             var subject = $"Response to Your Review of {productDisplayName}";
             var body = BuildResponseEmailBody(review, product, productDisplayName);
@@ -154,463 +133,108 @@ public class EmailNotificationService : IEmailNotificationService
             var message = new Message
             {
                 Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = body
-                },
-                ToRecipients = new List<Recipient>()
-                {
-                    new Recipient
-                    {
-                        EmailAddress = new EmailAddress
-                        {
-                            Address = review.CustomerEmail
-                        }
-                    }
-                }
+                Body = new ItemBody { ContentType = BodyType.Html, Content = body },
+                ToRecipients = new List<Recipient>{ new() { EmailAddress = new EmailAddress { Address = review.CustomerEmail } } }
             };
 
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
+            if (string.IsNullOrWhiteSpace(senderEmail))
             {
-                Message = message
-            });
-
-            _logger.LogInformation("Review response notification sent successfully to {CustomerEmail} for review ID {ReviewId}", 
-                review.CustomerEmail, review.Id);
+                _logger.LogWarning("SenderEmail not configured");
+                return;
+            }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = message });
+            _logger.LogInformation("Review response notification sent to {CustomerEmail} for review {ReviewId}", review.CustomerEmail, review.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send review response notification for review ID {ReviewId}", review.Id);
+            _logger.LogError(ex, "Failed to send review response notification for review {ReviewId}", review.Id);
         }
     }
 
     private string BuildNewReviewEmailBody(ProductReview review, Product product, string productDisplayName)
     {
-        return $@"
-        <html>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
-            <div style='max-width: 600px; margin: 0 auto; padding: 20px;'>
-                <h2 style='color: #2c5aa0;'>New Review Received</h2>
-                
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #495057;'>Product: {productDisplayName}</h3>
-                    <p><strong>Customer:</strong> {review.CustomerName}</p>
-                    <p><strong>Customer Email:</strong> <a href='mailto:{review.CustomerEmail}' style='color: #2c5aa0; text-decoration: none;'>{review.CustomerEmail}</a></p>
-                    <p><strong>Rating:</strong> {review.Rating}/5 ⭐</p>
-                    {(!string.IsNullOrEmpty(review.Title) ? $"<p><strong>Title:</strong> {review.Title}</p>" : "")}
-                    <p><strong>Review:</strong></p>
-                    <blockquote style='margin: 10px 0; padding: 10px; background-color: white; border-left: 4px solid #2c5aa0;'>
-                        {review.ReviewText}
-                    </blockquote>
-                    <p><strong>Review Date:</strong> {review.ReviewDate:MMM dd, yyyy}</p>
-                    {(review.IsVerifiedPurchase ? "<p><span style='color: #28a745;'>✓ Verified Purchase</span></p>" : "")}
-                </div>
-
-                <div style='background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h4 style='margin-top: 0; color: #2c5aa0;'>Reply to Customer</h4>
-                    <p style='margin-bottom: 10px;'>To respond to this review, simply reply to this email or click the button below:</p>
-                    <p style='margin-bottom: 15px;'>
-                        <strong>Customer Email:</strong> <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {productDisplayName}' style='color: #2c5aa0; text-decoration: none; font-weight: bold;'>{review.CustomerEmail}</a>
-                    </p>
-                    <p style='margin-bottom: 0;'>
-                        <a href='mailto:{review.CustomerEmail}?subject=Re: Your review of {productDisplayName}&body=Dear {review.CustomerName},%0A%0AThank you for your review of {productDisplayName}. ' 
-                           style='background-color: #2c5aa0; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>
-                            Reply to Customer
-                        </a>
-                    </p>
-                </div>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This is an automated notification from your ProductReviews system.
-                </p>
-            </div>
-        </body>
-        </html>";
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var rating = review.Rating?.ToString("0.0") ?? "N/A";
+        var inner = $@"<h2 class='h'>New Product Review</h2>
+<p>A new review was submitted for <strong>{E(productDisplayName)}</strong>.</p>
+<table class='data'>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Reviewer</td><td>{E(review.CustomerName)}</td></tr>
+<tr><td>Email</td><td>{E(review.CustomerEmail)}</td></tr>
+<tr><td>Rating</td><td>{rating} / 5</td></tr>
+<tr><td>Title</td><td>{E(review.Title)}</td></tr>
+<tr><td>Date</td><td>{review.ReviewDate:yyyy-MM-dd HH:mm} UTC</td></tr>
+<tr><td>Verified Purchase</td><td>{(review.IsVerifiedPurchase ? "Yes" : "No")}</td></tr>
+</table>
+<h3>Review Text</h3>
+<p class='pre'>{E(review.ReviewText)}</p>";
+        return WrapEmail(inner, "#ff9800", "#ff5722");
     }
 
     private string BuildResponseEmailBody(ProductReview review, Product product, string productDisplayName)
     {
-        return $@"
-        <html>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
-            <div style='max-width: 600px; margin: 0 auto; padding: 20px;'>
-                <h2 style='color: #2c5aa0;'>Thank you for your review!</h2>
-                
-                <p>Dear {review.CustomerName},</p>
-                
-                <p>Thank you for taking the time to review <strong>{productDisplayName}</strong>. We have responded to your feedback:</p>
-
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h4 style='margin-top: 0; color: #495057;'>Your Review ({review.Rating}/5 ⭐):</h4>
-                    <blockquote style='margin: 10px 0; padding: 10px; background-color: white; border-left: 4px solid #6c757d;'>
-                        {review.ReviewText}
-                    </blockquote>
-                </div>
-
-                <div style='background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h4 style='margin-top: 0; color: #2c5aa0;'>Our Response:</h4>
-                    <p style='margin-bottom: 0;'>{review.Response}</p>
-                    <p style='font-size: 12px; color: #6c757d; margin-top: 10px;'>
-                        Response Date: {review.ResponseDate:MMM dd, yyyy}
-                    </p>
-                </div>
-
-                <p>We appreciate your feedback and hope you continue to enjoy our products. If you have any additional questions or concerns, please don't hesitate to contact us.</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This is an automated notification. Please do not reply to this email.
-                </p>
-            </div>
-        </body>
-        </html>";
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var inner = $@"<h2 class='h'>Response to Your Review</h2>
+<p>Thank you for reviewing <strong>{E(productDisplayName)}</strong>. We have responded to your feedback.</p>
+<h3>Your Original Review</h3>
+<p><strong>Title:</strong> {E(review.Title)}</p>
+<p class='pre'>{E(review.ReviewText)}</p>
+<h3>Our Response</h3>
+<p class='pre'>{E(review.Response)}</p>
+<p class='meta'>Review Date: {review.ReviewDate:yyyy-MM-dd} | Response Date: {review.ResponseDate:yyyy-MM-dd}</p>";
+        return WrapEmail(inner, "#00bcd4", "#2196f3");
     }
 
+    // ---------- Order Emails ----------
     public async Task SendOrderConfirmationAsync(Order order, string customerEmail)
     {
-        if (_graphServiceClient == null)
-        {
-            _logger.LogInformation("Graph client not available");
-            return;
-        }
-
-        var adminEmail = _configuration["EmailSettings:AdminEmail"];
-        if (string.IsNullOrEmpty(adminEmail))
-        {
-            _logger.LogWarning("Admin email not configured");
-            return;
-        }
-
+        if (_graphServiceClient == null) { _logger.LogInformation("Graph client not available"); return; }
+        var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; }
         try
         {
             var subject = $"Order Confirmation - {order.OrderNumber}";
             var customerBody = GenerateOrderConfirmationEmail(order, customerEmail);
             var adminBody = GenerateOrderNotificationEmail(order, customerEmail);
-
-            // Send to customer
-            var customerMessage = new Message
-            {
-                Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = customerBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
-                }
-            };
-
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = customerMessage
-            });
-
-            // Send to admin
-            var adminMessage = new Message
-            {
-                Subject = $"New Order Received - {order.OrderNumber}",
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = adminBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
-                }
-            };
-
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = adminMessage
-            });
-
-            _logger.LogInformation("Order confirmation emails sent for order {OrderId}", order.Id);
+            if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = subject, Body = new ItemBody { ContentType = BodyType.Html, Content = customerBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } } } });
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Order Received - {order.OrderNumber}", Body = new ItemBody { ContentType = BodyType.Html, Content = adminBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } } } });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send order confirmation emails for order {OrderId}", order.Id);
-            throw;
-        }
-    }
-
-    private string GenerateOrderConfirmationEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
-            ? $"<p><strong>Estimated Delivery:</strong> {order.EstimatedDeliveryDate.Value:MMM dd, yyyy}</p>"
-            : string.Empty;
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Order Confirmation</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>Order Confirmation</h2>
-                
-                <p>Dear Customer,</p>
-                
-                <p>Thank you for your order! We have received your order and will process it shortly.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    {estimatedDelivery}
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Information</h3>
-                    <p>{billingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <p>We will send you another email with tracking information once your order ships.</p>
-
-                <p>Thank you for your business!</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This is an automated confirmation. Please do not reply to this email.
-                </p>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private string GenerateOrderNotificationEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-        var paymentIntent = string.IsNullOrWhiteSpace(order.PaymentIntentId)
-            ? "<em>Not provided</em>"
-            : HtmlEncode(order.PaymentIntentId);
-        var userId = string.IsNullOrWhiteSpace(order.UserId)
-            ? "<em>Unknown</em>"
-            : HtmlEncode(order.UserId);
-        var trackingInfo = string.IsNullOrWhiteSpace(order.TrackingNumber)
-            ? "<em>Not assigned</em>"
-            : HtmlEncode(order.TrackingNumber);
-        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
-            ? FormatDate(order.EstimatedDeliveryDate, "Not set")
-            : "<em>Not set</em>";
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>New Order Notification</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>New Order Received</h2>
-                
-                <p>A new order has been placed.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Summary</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
-                    <p><strong>User Id:</strong> {userId}</p>
-                    <p><strong>Payment Intent:</strong> {paymentIntent}</p>
-                    <p><strong>Estimated Delivery:</strong> {estimatedDelivery}</p>
-                    <p><strong>Tracking Number:</strong> {trackingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Information</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Information</h3>
-                    <p>{billingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <p>Please process this order promptly.</p>
-            </div>
-        </body>
-        </html>";
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send order confirmation for order {OrderId}", order.Id); throw; }
     }
 
     public async Task SendOrderCancellationAsync(Order order, string customerEmail)
     {
-        if (_graphServiceClient == null)
-        {
-            _logger.LogInformation("Graph client not available");
-            return;
-        }
-
-        var adminEmail = _configuration["EmailSettings:AdminEmail"];
-        if (string.IsNullOrEmpty(adminEmail))
-        {
-            _logger.LogWarning("Admin email not configured");
-            return;
-        }
-
+        if (_graphServiceClient == null) { _logger.LogInformation("Graph client not available"); return; }
+        var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; }
         try
         {
             var subject = $"Order Cancelled - {order.OrderNumber}";
             var customerBody = GenerateOrderCancellationEmail(order, customerEmail);
             var adminBody = GenerateOrderCancellationNotificationEmail(order, customerEmail);
-
-            // Send to customer
-            var customerMessage = new Message
-            {
-                Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = customerBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
-                }
-            };
-
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = customerMessage
-            });
-
-            // Send to admin
-            var adminMessage = new Message
-            {
-                Subject = $"Order Cancelled - {order.OrderNumber}",
-                Body = new ItemBody
+            if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(
+                new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
                 {
-                    ContentType = BodyType.Html,
-                    Content = adminBody
-                },
-                ToRecipients = new List<Recipient>
+                    Message = new Message
+                    {
+                        Subject = subject,
+                        Body = new ItemBody { ContentType = BodyType.Html, Content = customerBody },
+                        ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } }
+                    }
+                });
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(
+                new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
                 {
-                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
-                }
-            };
-
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = adminMessage
-            });
-
-            _logger.LogInformation("Order cancellation emails sent for order {OrderId}", order.Id);
+                    Message = new Message
+                    {
+                        Subject = subject,
+                        Body = new ItemBody { ContentType = BodyType.Html, Content = adminBody },
+                        ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } }
+                    }
+                });
         }
         catch (Exception ex)
         {
@@ -619,1101 +243,264 @@ public class EmailNotificationService : IEmailNotificationService
         }
     }
 
-    private string GenerateOrderCancellationEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate, "Unknown");
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Order Cancelled</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
-                <h2 style='color: #856404; margin-top: 0;'>Order Cancelled</h2>
-                
-                <p>Dear Customer,</p>
-                
-                <p>We're writing to inform you that your order has been cancelled. If this was unexpected, please contact our customer service team.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Items in Cancelled Order</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Shipping Information</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Billing Information</h3>
-                    <p>{billingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Order Notes</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
-                    <h3 style='margin-top: 0; color: #0c5460;'>Refund Information</h3>
-                    <p>If you were charged for this order, a refund will be processed within 3-5 business days to your original payment method.</p>
-                    <p>If you have any questions about this cancellation or your refund, please contact our customer service team.</p>
-                </div>
-
-                <p>We apologize for any inconvenience this cancellation may have caused.</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This is an automated notification. If you have questions, please contact customer service.
-                </p>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private string GenerateOrderCancellationNotificationEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate, "Unknown");
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-        var paymentIntent = string.IsNullOrWhiteSpace(order.PaymentIntentId)
-            ? "<em>Not provided</em>"
-            : HtmlEncode(order.PaymentIntentId);
-        var userId = string.IsNullOrWhiteSpace(order.UserId)
-            ? "<em>Unknown</em>"
-            : HtmlEncode(order.UserId);
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Order Cancellation Notification</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
-                <h2 style='color: #856404; margin-top: 0;'>Order Cancelled</h2>
-                
-                <p>An order has been cancelled.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Cancelled Order Details</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
-                    <p><strong>User Id:</strong> {userId}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    <p><strong>Payment Intent:</strong> {paymentIntent}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Items in Cancelled Order</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Shipping Information</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Billing Information</h3>
-                    <p>{billingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Order Notes</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Action Required</h3>
-                    <p><strong>Process Refund:</strong> If payment was processed, initiate refund for ${order.TotalAmount:F2}</p>
-                    <p><strong>Update Inventory:</strong> Return cancelled items to inventory if applicable</p>
-                    <p><strong>Customer Contact:</strong> Consider reaching out to customer to understand cancellation reason</p>
-                </div>
-
-                <p>Please take appropriate action for this cancelled order.</p>
-            </div>
-        </body>
-        </html>";
-    }
-
     public async Task SendCheckoutCancellationEmailAsync(List<CartProduct> cart, string customerEmail)
     {
-        if (_graphServiceClient == null)
-        {
-            _logger.LogInformation("Graph client not available");
-            return;
-        }
-
-        var adminEmail = _configuration["EmailSettings:AdminEmail"];
-        if (string.IsNullOrEmpty(adminEmail))
-        {
-            _logger.LogWarning("Admin email not configured");
-            return;
-        }
-
+        if (_graphServiceClient == null) { _logger.LogInformation("Graph client not available"); return; }
+        var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; }
         try
         {
             var subject = "Checkout Cancelled";
             var customerBody = GenerateCheckoutCancellationEmail(cart, customerEmail);
             var adminBody = GenerateCheckoutCancellationNotificationEmail(cart, customerEmail);
-
-            // Send to customer
-            var customerMessage = new Message
-            {
-                Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = customerBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
-                }
-            };
-
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = customerMessage
-            });
-
-            // Send to admin
-            var adminMessage = new Message
-            {
-                Subject = "Customer Cancelled Checkout",
-                Body = new ItemBody
+            if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(
+                new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
                 {
-                    ContentType = BodyType.Html,
-                    Content = adminBody
-                },
-                ToRecipients = new List<Recipient>
+                    Message = new Message
+                    {
+                        Subject = subject,
+                        Body = new ItemBody { ContentType = BodyType.Html, Content = customerBody },
+                        ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } }
+                    }
+                });
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(
+                new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
                 {
-                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
-                }
-            };
-
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = adminMessage
-            });
-
-            _logger.LogInformation("Checkout cancellation emails sent for customer {CustomerEmail}", customerEmail);
+                    Message = new Message
+                    {
+                        Subject = "Customer Cancelled Checkout",
+                        Body = new ItemBody { ContentType = BodyType.Html, Content = adminBody },
+                        ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } }
+                    }
+                });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send checkout cancellation emails for customer {CustomerEmail}", customerEmail);
+            _logger.LogError(ex, "Failed to send checkout cancellation emails for {CustomerEmail}", customerEmail);
             throw;
         }
     }
 
-    private string GenerateCheckoutCancellationEmail(List<CartProduct> cart, string customerEmail)
-    {
-        // Separate products from tax/shipping items
-        var products = cart?.Where(item => 
-            !item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true && 
-            !item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-        
-        var taxItems = cart?.Where(item => 
-            item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-        
-        var shippingItems = cart?.Where(item => 
-            item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-
-        var itemsHtml = products.Any() 
-            ? products.Select(item => 
-                $@"<tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.DisplayName ?? item.Name ?? "Unknown Product"}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
-                </tr>").Aggregate((a, b) => a + b)
-            : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
-
-        var subtotal = products.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var taxAmount = taxItems.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var shippingAmount = shippingItems.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Checkout Cancelled</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
-                <h2 style='color: #856404; margin-top: 0;'>Checkout Cancelled</h2>
-                
-                <p>Dear Customer,</p>
-                
-                <p>We noticed that you cancelled your checkout process. Don't worry - your items are still saved in your cart for when you're ready to complete your purchase.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Items in Your Cart</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : "")}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : "")}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${total:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
-                    <h3 style='margin-top: 0; color: #0c5460;'>Complete Your Purchase</h3>
-                    <p>Your items are waiting for you! Return to your cart anytime to complete your purchase.</p>
-                    <p>If you experienced any issues during checkout, please don't hesitate to contact our customer service team.</p>
-                </div>
-
-                <p>Thank you for considering our products!</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This is an automated notification. If you have questions, please contact customer service.
-                </p>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private string GenerateCheckoutCancellationNotificationEmail(List<CartProduct> cart, string customerEmail)
-    {
-        // Separate products from tax/shipping items
-        var products = cart?.Where(item => 
-            !item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true && 
-            !item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-        
-        var taxItems = cart?.Where(item => 
-            item.Name?.Contains("Tax", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-        
-        var shippingItems = cart?.Where(item => 
-            item.Name?.Contains("Shipping", StringComparison.OrdinalIgnoreCase) == true).ToList() ?? new List<CartProduct>();
-
-        var itemsHtml = products.Any() 
-            ? products.Select(item => 
-                $@"<tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{item.DisplayName ?? item.Name ?? "Unknown Product"}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{item.Quantity}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${item.Price:F2}</td>
-                    <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${(item.Price * item.Quantity):F2}</td>
-                </tr>").Aggregate((a, b) => a + b)
-            : "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in cart</td></tr>";
-
-        var subtotal = products.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var taxAmount = taxItems.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var shippingAmount = shippingItems.Sum(item => (item.Price ?? 0) * item.Quantity);
-        var total = cart?.Sum(item => (item.Price ?? 0) * item.Quantity) ?? 0;
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Customer Cancelled Checkout</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;'>
-                <h2 style='color: #856404; margin-top: 0;'>Customer Cancelled Checkout</h2>
-                
-                <p>A customer cancelled their checkout process.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Customer Details</h3>
-                    <p><strong>Customer Email:</strong> {customerEmail}</p>
-                    <p><strong>Cancellation Time:</strong> {DateTime.UtcNow:MMM dd, yyyy HH:mm} UTC</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Abandoned Cart Items</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : "")}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : "")}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${total:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Follow-up Actions</h3>
-                    <p><strong>Consider:</strong> Sending a follow-up email with a discount code to encourage completion</p>
-                    <p><strong>Review:</strong> Check if there were any technical issues during checkout</p>
-                    <p><strong>Analytics:</strong> Track abandonment rates to identify potential improvements</p>
-                </div>
-
-                <p>Monitor checkout flow for potential improvements to reduce abandonment.</p>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private static string BuildOrderItemsHtml(Order order)
-    {
-        if (order.Items == null || order.Items.Count == 0)
-        {
-            return "<tr><td colspan='4' style='padding: 8px; text-align: center;'>No items in order</td></tr>";
-        }
-
-        return string.Join(string.Empty, order.Items.Select(item =>
-        {
-            var productNameRaw = item.Product?.GetDisplayName();
-            var productName = HtmlEncode(string.IsNullOrWhiteSpace(productNameRaw)
-                ? item.Product?.Name ?? "Unknown Product"
-                : productNameRaw);
-            var quantity = item.Quantity;
-            var unitPrice = item.UnitPrice ?? 0m;
-            var lineTotal = unitPrice * quantity;
-
-            return $@"<tr>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6;'>{productName}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: center;'>{quantity}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${unitPrice:F2}</td>
-                <td style='padding: 8px; border-bottom: 1px solid #dee2e6; text-align: right;'>${lineTotal:F2}</td>
-            </tr>";
-        }));
-    }
-
-    private static string FormatDate(DateTime? date, string placeholder = "Not provided")
-    {
-        return date.HasValue
-            ? HtmlEncode(date.Value.ToString("MMM dd, yyyy"))
-            : $"<em>{HtmlEncode(placeholder)}</em>";
-    }
-
-    private static string ConvertToHtmlLines(string? value, string placeholder = "Not provided")
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return $"<em>{HtmlEncode(placeholder)}</em>";
-        }
-
-        var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
-        var encoded = HtmlEncode(normalized);
-        return encoded.Replace("\n", "<br>");
-    }
-
-    private static string HtmlEncode(string? value)
-    {
-        return WebUtility.HtmlEncode(value ?? string.Empty);
-    }
-
+    // ---------- Invoice Emails ----------
     public async Task SendInvoiceEmailAsync(Order order, string customerEmail, byte[] invoicePdf)
     {
-        if (_graphServiceClient == null)
-        {
-            _logger.LogWarning("Microsoft Graph client is not initialized. Cannot send invoice email.");
-            return;
-        }
-
-        var adminEmail = _configuration["EmailSettings:AdminEmail"];
-        if (string.IsNullOrEmpty(adminEmail))
-        {
-            _logger.LogWarning("Admin email not configured");
-            return;
-        }
-
+        if (_graphServiceClient == null) { _logger.LogWarning("Graph client not initialized"); return; }
+        var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; }
         try
         {
             var subject = $"Invoice for Purchase Order - {order.OrderNumber}";
             var customerBody = GenerateInvoiceEmail(order, customerEmail);
             var adminBody = GenerateInvoiceNotificationEmail(order, customerEmail);
-
-            // Convert PDF to base64 attachment
-            var pdfAttachment = new FileAttachment
-            {
-                Name = $"Invoice-{order.OrderNumber}.pdf",
-                ContentType = "application/pdf",
-                ContentBytes = invoicePdf
-            };
-
-            // Send to customer with PDF attachment
-            var customerMessage = new Message
-            {
-                Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = customerBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
-                },
-                Attachments = new List<Attachment> { pdfAttachment }
-            };
-
+            var pdfAttachment = new FileAttachment { Name = $"Invoice-{order.OrderNumber}.pdf", ContentType = "application/pdf", ContentBytes = invoicePdf };
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = customerMessage
-            });
-
-            // Send to admin with PDF attachment
-            var adminMessage = new Message
-            {
-                Subject = $"New Purchase Order Invoice Generated - {order.OrderNumber}",
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = adminBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
-                },
-                Attachments = new List<Attachment> { pdfAttachment }
-            };
-
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = adminMessage
-            });
-
+            if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = subject, Body = new ItemBody{ ContentType = BodyType.Html, Content = customerBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } }, Attachments = new List<Attachment>{ pdfAttachment } } });
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Purchase Order Invoice Generated - {order.OrderNumber}", Body = new ItemBody{ ContentType = BodyType.Html, Content = adminBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } }, Attachments = new List<Attachment>{ pdfAttachment } } });
             _logger.LogInformation("Invoice emails sent for order {OrderId}", order.Id);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send invoice emails for order {OrderId}", order.Id);
-            throw;
-        }
-    }
-
-    private string GenerateInvoiceEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Invoice for Purchase Order</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>Invoice for Purchase Order</h2>
-                
-                <p>Dear Customer,</p>
-                
-                <p>Thank you for your Purchase Order! Please find attached the invoice for your order. This invoice serves as your billing document for processing payment through your accounts payable department.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    <p><strong>Invoice Amount:</strong> <span style='font-size: 1.2em; font-weight: bold; color: #2c5aa0;'>${totalAmount:F2}</span></p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Amount Due:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Purchase Order Information</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Shipping Address</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Billing Address</h3>
-                    <p>{billingInfo}</p>
-                </div>
-
-                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
-                    <h3 style='margin-top: 0; color: #0c5460;'>Payment Instructions</h3>
-                    <p><strong>Payment Terms:</strong> Net 30 days from invoice date</p>
-                    <p><strong>Remit Payment To:</strong> ProductReviews Accounts Receivable</p>
-                    <p>Please reference order number <strong>{HtmlEncode(order.OrderNumber)}</strong> with your payment.</p>
-                    <p>For any billing questions, please contact our accounting department.</p>
-                </div>
-
-                <p>We will begin processing your order upon receipt of payment or purchase order approval.</p>
-
-                <p>Thank you for your business!</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This invoice was automatically generated. Please retain for your records.
-                </p>
-            </div>
-        </body>
-        </html>";
-    }
-
-    private string GenerateInvoiceNotificationEmail(Order order, string customerEmail)
-    {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
-
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>New Purchase Order Invoice Generated</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>New Purchase Order Invoice Generated</h2>
-                
-                <p>A new invoice has been generated for a Purchase Order.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Invoice Summary</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> {order.PaymentMethod}</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    <p><strong>Invoice Total:</strong> <span style='font-weight: bold; color: #2c5aa0;'>${totalAmount:F2}</span></p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Invoiced</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Shipping:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Purchase Order Details</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Customer Information</h3>
-                    <div style='display: flex; gap: 20px;'>
-                        <div style='flex: 1;'>
-                            <h4 style='margin-top: 0; color: #495057;'>Shipping Address</h4>
-                            <p>{shippingInfo}</p>
-                        </div>
-                        <div style='flex: 1;'>
-                            <h4 style='margin-top: 0; color: #495057;'>Billing Address</h4>
-                            <p>{billingInfo}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div style='background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #17a2b8;'>
-                    <h3 style='margin-top: 0; color: #0c5460;'>Next Steps</h3>
-                    <p><strong>1. Customer Follow-up:</strong> Monitor for payment or PO processing</p>
-                    <p><strong>2. Order Processing:</strong> Begin fulfillment upon payment receipt/PO approval</p>
-                    <p><strong>3. Status Updates:</strong> Keep customer informed of order progress</p>
-                    <p><strong>4. Payment Terms:</strong> Net 30 days from invoice date</p>
-                </div>
-
-                <p>The invoice PDF has been sent to both the customer and saved for your records.</p>
-            </div>
-        </body>
-        </html>";
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send invoice emails for order {OrderId}", order.Id); throw; }
     }
 
     public async Task SendCashOrderEmailAsync(Order order, string customerEmail, byte[] deliveryReceiptPdf)
     {
-        if (_graphServiceClient == null)
-        {
-            _logger.LogWarning("Microsoft Graph client is not initialized. Cannot send cash order email.");
-            return;
-        }
-
-        var adminEmail = _configuration["EmailSettings:AdminEmail"];
-        if (string.IsNullOrEmpty(adminEmail))
-        {
-            _logger.LogWarning("Admin email not configured");
-            return;
-        }
-
+        if (_graphServiceClient == null) { _logger.LogWarning("Graph client not initialized"); return; }
+        var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; }
         try
         {
             var subject = $"Cash Order Delivery Receipt - {order.OrderNumber}";
             var customerBody = GenerateCashOrderEmail(order, customerEmail);
             var adminBody = GenerateCashOrderNotificationEmail(order, customerEmail);
-
-            // Convert PDF to base64 attachment
-            var pdfAttachment = new FileAttachment
-            {
-                Name = $"Delivery-Receipt-{order.OrderNumber}.pdf",
-                ContentType = "application/pdf",
-                ContentBytes = deliveryReceiptPdf
-            };
-
-            // Send to customer with PDF attachment
-            var customerMessage = new Message
-            {
-                Subject = subject,
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = customerBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = customerEmail } }
-                },
-                Attachments = new List<Attachment> { pdfAttachment }
-            };
-
+            var pdfAttachment = new FileAttachment { Name = $"Delivery-Receipt-{order.OrderNumber}.pdf", ContentType = "application/pdf", ContentBytes = deliveryReceiptPdf };
             var senderEmail = _configuration["EmailSettings:SenderEmail"];
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = customerMessage
-            });
-
-            // Send to admin with PDF attachment
-            var adminMessage = new Message
-            {
-                Subject = $"New Cash Order for Delivery - {order.OrderNumber}",
-                Body = new ItemBody
-                {
-                    ContentType = BodyType.Html,
-                    Content = adminBody
-                },
-                ToRecipients = new List<Recipient>
-                {
-                    new() { EmailAddress = new EmailAddress { Address = adminEmail } }
-                },
-                Attachments = new List<Attachment> { pdfAttachment }
-            };
-
-            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody
-            {
-                Message = adminMessage
-            });
-
+            if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; }
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = subject, Body = new ItemBody{ ContentType = BodyType.Html, Content = customerBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } }, Attachments = new List<Attachment>{ pdfAttachment } } });
+            await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Cash Order for Delivery - {order.OrderNumber}", Body = new ItemBody{ ContentType = BodyType.Html, Content = adminBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } }, Attachments = new List<Attachment>{ pdfAttachment } } });
             _logger.LogInformation("Cash order emails sent for order {OrderId}", order.Id);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send cash order emails for order {OrderId}", order.Id);
-            throw;
-        }
+        catch (Exception ex) { _logger.LogError(ex, "Failed to send cash order emails for order {OrderId}", order.Id); throw; }
     }
 
-    private string GenerateCashOrderEmail(Order order, string customerEmail)
+    // (Helper HTML builders for orders / invoices / cash orders are below)
+    private string GenerateOrderConfirmationEmail(Order order, string customerEmail) => BuildOrderEmail("Order Confirmation", order, customerEmail, highlight: null, isCancellation:false, accent1:"#0d6efd", accent2:"#6610f2");
+    private string GenerateOrderNotificationEmail(Order order, string customerEmail) => BuildOrderEmail("New Order Received (Admin)", order, customerEmail, highlight: null, isCancellation:false, admin:true, accent1:"#fd7e14", accent2:"#ffc107");
+    private string GenerateOrderCancellationEmail(Order order, string customerEmail) => BuildOrderEmail("Order Cancelled", order, customerEmail, highlight: "#dc3545", isCancellation:true, accent1:"#dc3545", accent2:"#b02a37");
+    private string GenerateOrderCancellationNotificationEmail(Order order, string customerEmail) => BuildOrderEmail("Order Cancelled (Admin)", order, customerEmail, highlight: "#dc3545", isCancellation:true, admin:true, accent1:"#dc3545", accent2:"#b02a37");
+    private string GenerateCheckoutCancellationEmail(List<CartProduct> cart, string customerEmail) => BuildCheckoutCancelledEmail(cart, customerEmail, false, "#ff1744", "#d50000");
+    private string GenerateCheckoutCancellationNotificationEmail(List<CartProduct> cart, string customerEmail) => BuildCheckoutCancelledEmail(cart, customerEmail, true, "#ff1744", "#d50000");
+    private string GenerateInvoiceEmail(Order order, string customerEmail) => BuildOrderEmail("Invoice", order, customerEmail, highlight: "#6f42c1", isCancellation:false, isInvoice:true, accent1:"#6f42c1", accent2:"#6610f2");
+    private string GenerateInvoiceNotificationEmail(Order order, string customerEmail) => BuildOrderEmail("Invoice Generated (Admin)", order, customerEmail, highlight: "#6f42c1", isCancellation:false, isInvoice:true, admin:true, accent1:"#6f42c1", accent2:"#6610f2");
+    private string GenerateCashOrderEmail(Order order, string customerEmail) => BuildOrderEmail("Cash Order Delivery Receipt", order, customerEmail, highlight: "#198754", isCancellation:false, isCash:true, accent1:"#198754", accent2:"#20c997");
+    private string GenerateCashOrderNotificationEmail(Order order, string customerEmail) => BuildOrderEmail("New Cash Order (Admin)", order, customerEmail, highlight: "#198754", isCancellation:false, isCash:true, admin:true, accent1:"#198754", accent2:"#20c997");
+
+    // ---------- Service Emails ----------
+    public async Task SendNewServiceReviewNotificationAsync(ServiceReview review, Service service)
+    { if (_graphServiceClient == null) return; var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrEmpty(adminEmail)) return; try { var senderEmail = _configuration["EmailSettings:SenderEmail"]; if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; } await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Service Review: {service.Name}", Body = new ItemBody{ ContentType = BodyType.Html, Content = GenerateServiceReviewNotificationEmail(review, service) }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } } } }); } catch (Exception ex) { _logger.LogError(ex, "Failed service review notification {ReviewId}", review.Id); } }
+    public async Task SendServiceReviewResponseNotificationAsync(ServiceReview review, Service service)
+    { if (_graphServiceClient == null || string.IsNullOrEmpty(review.CustomerEmail)) return; try { var senderEmail = _configuration["EmailSettings:SenderEmail"]; if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; } await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"Response to Your Service Review: {service.Name}", Body = new ItemBody{ ContentType = BodyType.Html, Content = GenerateServiceReviewResponseEmail(review, service) }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = review.CustomerEmail } } } } }); } catch (Exception ex) { _logger.LogError(ex, "Failed service review response {ReviewId}", review.Id); } }
+    public async Task SendServiceOrderConfirmationAsync(ServiceOrder order, string customerEmail)
+    { if (_graphServiceClient == null) return; try { var senderEmail = _configuration["EmailSettings:SenderEmail"]; if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; } var adminEmail = _configuration["EmailSettings:AdminEmail"]; var customerBody = GenerateServiceOrderConfirmationEmail(order, customerEmail); await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"Service Order Confirmation - {order.OrderNumber}", Body = new ItemBody{ ContentType = BodyType.Html, Content = customerBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } } } }); if (!string.IsNullOrWhiteSpace(adminEmail)) { var adminBody = GenerateServiceOrderAdminConfirmationEmail(order, customerEmail); await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Service Order - {order.OrderNumber}", Body = new ItemBody{ ContentType = BodyType.Html, Content = adminBody }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } } } }); } } catch (Exception ex) { _logger.LogError(ex, "Failed service order confirmation {OrderId}", order.Id); } }
+    public async Task SendServiceOrderStatusUpdateAsync(ServiceOrder order, string customerEmail, ServiceOrderStatus oldStatus)
+    { if (_graphServiceClient == null) return; try { var senderEmail = _configuration["EmailSettings:SenderEmail"]; if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; } await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"Service Order Update - {order.OrderNumber}", Body = new ItemBody{ ContentType = BodyType.Html, Content = GenerateServiceOrderStatusUpdateEmail(order, customerEmail, oldStatus) }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = customerEmail } } } } }); } catch (Exception ex) { _logger.LogError(ex, "Failed service order status update {OrderId}", order.Id); } }
+    public async Task SendServiceCreatedNotificationAsync(Service service)
+    { if (_graphServiceClient == null) { _logger.LogWarning("Graph client not initialized"); return; } var adminEmail = _configuration["EmailSettings:AdminEmail"]; if (string.IsNullOrWhiteSpace(adminEmail)) { _logger.LogWarning("Admin email not configured"); return; } try { var senderEmail = _configuration["EmailSettings:SenderEmail"]; if (string.IsNullOrWhiteSpace(senderEmail)) { _logger.LogWarning("SenderEmail not configured"); return; } await _graphServiceClient.Users[senderEmail].SendMail.PostAsync(new Microsoft.Graph.Users.Item.SendMail.SendMailPostRequestBody { Message = new Message { Subject = $"New Service Submitted: {service.Name}", Body = new ItemBody{ ContentType = BodyType.Html, Content = BuildServiceCreatedEmailBody(service) }, ToRecipients = new List<Recipient>{ new(){ EmailAddress = new EmailAddress{ Address = adminEmail } } } } }); } catch (Exception ex) { _logger.LogError(ex, "Failed to send service created notification {ServiceId}", service.Id); } }
+
+    // Service email generators
+    private string GenerateServiceReviewNotificationEmail(ServiceReview review, Service service)
     {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
-            ? $"<p><strong>Estimated Delivery:</strong> {order.EstimatedDeliveryDate.Value:MMM dd, yyyy}</p>"
-            : string.Empty;
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var billingInfo = ConvertToHtmlLines(order.BillingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var rating = review.Rating?.ToString("0.0") ?? "N/A";
+        var inner = $@"<h2 class='h'>New Service Review</h2>
+<p>Service: <strong>{E(service.Name)}</strong></p>
+<table class='data'>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Reviewer</td><td>{E(review.CustomerName)}</td></tr>
+<tr><td>Email</td><td>{E(review.CustomerEmail)}</td></tr>
+<tr><td>Rating</td><td>{rating} / 5</td></tr>
+<tr><td>Category</td><td>{review.ReviewCategory}</td></tr>
+<tr><td>Date</td><td>{review.ReviewDate:yyyy-MM-dd HH:mm} UTC</td></tr>
+</table>
+<h3>Review Text</h3>
+<p class='pre'>{E(review.ReviewText)}</p>";
+        return WrapEmail(inner, "#ff9800", "#ff5722");
+    }
+    private string GenerateServiceReviewResponseEmail(ServiceReview review, Service service)
+    {
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var inner = $@"<h2 class='h'>Response to Your Service Review</h2>
+<p>Service: <strong>{E(service.Name)}</strong></p>
+<h3>Your Review</h3>
+<p class='pre'>{E(review.ReviewText)}</p>
+<h3>Our Response</h3>
+<p class='pre'>{E(review.Response)}</p>
+<p class='meta'>Review Date: {review.ReviewDate:yyyy-MM-dd} | Response: {review.ResponseDate:yyyy-MM-dd}</p>";
+        return WrapEmail(inner, "#00bcd4", "#2196f3");
+    }
+    private string GenerateServiceOrderConfirmationEmail(ServiceOrder order, string customerEmail) => BuildServiceOrderEmail("Service Order Confirmation", order, customerEmail, false, "#17a2b8", "#0d6efd");
+    private string GenerateServiceOrderAdminConfirmationEmail(ServiceOrder order, string customerEmail) => BuildServiceOrderEmail("New Service Order (Admin)", order, customerEmail, true, "#17a2b8", "#0d6efd");
+    private string GenerateServiceOrderStatusUpdateEmail(ServiceOrder order, string customerEmail, ServiceOrderStatus oldStatus) => BuildServiceOrderStatusUpdate(order, customerEmail, oldStatus, "#6c757d", "#343a40");
 
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Cash Order Delivery Receipt</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>Cash Order - Delivery Receipt</h2>
-                
-                <p>Dear Customer,</p>
-                
-                <p>Thank you for your cash order! We have prepared your order for delivery. Please find attached your delivery receipt which our driver will use to collect payment upon delivery.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Details</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> Cash on Delivery</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    {estimatedDelivery}
-                    <p><strong>Amount Due on Delivery:</strong> <span style='font-size: 1.2em; font-weight: bold; color: #28a745;'>${totalAmount:F2}</span></p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items Ordered</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Delivery:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Due:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Delivery Address</h3>
-                    <p>{shippingInfo}</p>
-                </div>
-
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Notes</h3>
-                    <p>{notesInfo}</p>
-                </div>
-
-                <div style='background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;'>
-                    <h3 style='margin-top: 0; color: #155724;'>Cash on Delivery Instructions</h3>
-                    <p><strong>Payment Due:</strong> ${totalAmount:F2} in cash upon delivery</p>
-                    <p><strong>Exact Change:</strong> Please have exact change ready if possible</p>
-                    <p><strong>Receipt:</strong> Our driver will provide you with a receipt upon payment</p>
-                    <p><strong>Contact:</strong> Please be available at the delivery address during the estimated delivery window</p>
-                </div>
-
-                <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Important Notes</h3>
-                    <p>• Our driver will contact you before delivery</p>
-                    <p>• If you're not available, we'll schedule a re-delivery</p>
-                    <p>• Payment must be made in cash - we cannot accept checks or cards</p>
-                    <p>• Keep this receipt for your records</p>
-                </div>
-
-                <p>We will contact you when your order is ready for delivery. Thank you for your business!</p>
-
-                <p>Best regards,<br>The ProductReviews Team</p>
-
-                <hr style='margin: 30px 0; border: none; border-top: 1px solid #dee2e6;'>
-                <p style='font-size: 12px; color: #6c757d;'>
-                    This delivery receipt was automatically generated. Please retain for your records.
-                </p>
-            </div>
-        </body>
-        </html>";
+    // ---------- Shared Helpers ----------
+    private string BuildServiceCreatedEmailBody(Service service)
+    {
+        string H(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        string ToLines(string? v) => string.IsNullOrWhiteSpace(v) ? "<em>Not provided</em>" : WebUtility.HtmlEncode(v).Replace("\r\n", "\n").Replace('\r', '\n').Trim().Replace("\n", "<br>");
+        var pricingType = service.PricingType.ToString();
+        var rates = new List<string>();
+        if (service.HourlyRate.HasValue) rates.Add($"Hourly: ${service.HourlyRate.Value:F2}");
+        if (service.DailyRate.HasValue) rates.Add($"Daily: ${service.DailyRate.Value:F2}");
+        if (service.ProjectRate.HasValue) rates.Add($"Project: ${service.ProjectRate.Value:F2}");
+        if (!rates.Any()) rates.Add("<em>No rates specified</em>");
+        var category = service.ServiceCategory?.FirstOrDefault()?.Name ?? "Uncategorized";
+        var company = service.ServiceCompany?.FirstOrDefault()?.Name ?? "Unassigned";
+        var inner = @$"<h2 class='h'>New Service Submitted: {H(service.Name)}</h2>
+<p>A new service has been submitted. Review the details below:</p>
+<div class='grid'>
+  <div>
+    <h3>Basic Information</h3>
+    <p><strong>SKU:</strong> {H(service.SKU) ?? "<em>None</em>"}</p>
+    <p><strong>Category:</strong> {H(category)}</p>
+    <p><strong>Company:</strong> {H(company)}</p>
+    <p><strong>Pricing Type:</strong> {pricingType}</p>
+    <p><strong>Rates:</strong> {string.Join(" | ", rates)}</p>
+    <p><strong>Availability:</strong> {(service.IsAvailable ? "Available" : "Unavailable")}</p>
+    <p><strong>Requires On-site:</strong> {(service.RequiresOnsite ? "Yes" : "No")}</p>
+    <p><strong>Includes Travel:</strong> {(service.IncludesTravel ? "Yes" : "No")}</p>
+    {(service.EstimatedDurationHours.HasValue ? $"<p><strong>Estimated Duration (hrs):</strong> {service.EstimatedDurationHours}</p>" : "")}
+  </div>
+</div>
+<h3>Description</h3><p>{ToLines(service.Description)}</p>
+<h3>Requirements</h3><p>{ToLines(service.Requirements)}</p>
+<h3>Deliverables</h3><p>{ToLines(service.Deliverables)}</p>
+<h3>Notes</h3><p>{ToLines(service.Notes)}</p>
+{(string.IsNullOrWhiteSpace(service.ImageUrl) ? string.Empty : $"<p><strong>Image URL:</strong> {H(service.ImageUrl)}</p>")}";
+        return WrapEmail(inner, "#673ab7", "#3f51b5");
     }
 
-    private string GenerateCashOrderNotificationEmail(Order order, string customerEmail)
+    private string BuildOrderEmail(string title, Order order, string customerEmail, string? highlight, bool isCancellation, bool admin = false, bool isInvoice = false, bool isCash = false, string accent1 = "#0d6efd", string accent2 = "#6610f2")
     {
-        var itemsHtml = BuildOrderItemsHtml(order);
-        var subtotal = order.Subtotal ?? 0m;
-        var taxAmount = order.TaxAmount ?? 0m;
-        var shippingAmount = order.ShippingAmount ?? 0m;
-        var totalAmount = order.TotalAmount ?? subtotal + taxAmount + shippingAmount;
-        var orderDate = FormatDate(order.OrderDate);
-        var estimatedDelivery = order.EstimatedDeliveryDate.HasValue
-            ? FormatDate(order.EstimatedDeliveryDate, "Not set")
-            : "<em>Not set</em>";
-        var shippingInfo = ConvertToHtmlLines(order.ShippingAddress);
-        var notesInfo = ConvertToHtmlLines(order.Notes, "No additional notes provided.");
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        string Money(decimal? v) => v.HasValue ? v.Value.ToString("C2") : "$0.00";
+        var sb = new StringBuilder();
+        sb.Append($"<h2 class='h' style='color:{(highlight ?? accent1)}'>{E(title)}</h2>");
+        if (isCancellation) sb.Append("<p class='badge danger'>Cancelled</p>");
+        else if (isInvoice) sb.Append("<p class='lead'>Attached is your invoice. A summary is below.</p>");
+        else if (isCash) sb.Append("<p class='lead'>Delivery receipt for your cash order.</p>");
+        else sb.Append("<p class='lead'>Thank you for your purchase.</p>");
+        sb.Append("<table class='data compact'><tr><th>Order #</th><th>Status</th><th>Date (UTC)</th><th>Payment</th><th>Customer</th></tr>");
+        sb.Append($"<tr><td>{E(order.OrderNumber)}</td><td>{order.Status}</td><td>{order.OrderDate:yyyy-MM-dd HH:mm}</td><td>{order.PaymentMethod}</td><td>{E(customerEmail)}</td></tr></table>");
+        sb.Append("<h3>Items</h3><table class='data wide'><tr><th>#</th><th style='text-align:left'>Item</th><th>Qty</th><th style='text-align:right'>Unit</th><th style='text-align:right'>Line Total</th></tr>");
+        var idx = 1; foreach (var it in order.Items) { var name = it.Product?.GetDisplayName() ?? it.Product?.Name ?? (it.ProductId.HasValue ? $"Product {it.ProductId}" : "Item"); sb.Append($"<tr><td>{idx}</td><td>{E(name)}</td><td>{it.Quantity}</td><td class='num'>{Money(it.UnitPrice)}</td><td class='num'>{Money(it.TotalPrice)}</td></tr>"); idx++; }
+        if (!order.Items.Any()) sb.Append("<tr><td colspan='5' class='empty'>No line items recorded.</td></tr>");
+        sb.Append("</table>");
+        sb.Append("<div class='totals'><table><tr><td>Subtotal</td><td class='num'>" + Money(order.Subtotal) + "</td></tr><tr><td>Tax</td><td class='num'>" + Money(order.TaxAmount) + "</td></tr><tr><td>Shipping</td><td class='num'>" + Money(order.ShippingAmount) + "</td></tr><tr class='grand'><td>Total</td><td class='num'>" + Money(order.TotalAmount) + "</td></tr>");
+        if (order.EstimatedDeliveryDate.HasValue && !isCancellation) sb.Append($"<tr><td>Est. Delivery</td><td class='num'>{order.EstimatedDeliveryDate:yyyy-MM-dd}</td></tr>");
+        if (!string.IsNullOrWhiteSpace(order.TrackingNumber)) sb.Append($"<tr><td>Tracking #</td><td class='num'>{E(order.TrackingNumber)}</td></tr>");
+        sb.Append("</table></div>");
+        if (!string.IsNullOrWhiteSpace(order.ShippingAddress) || !string.IsNullOrWhiteSpace(order.BillingAddress)) { sb.Append("<div class='cols'>"); if (!string.IsNullOrWhiteSpace(order.ShippingAddress)) sb.Append($"<div><h4>Shipping</h4><p class='pre'>{E(order.ShippingAddress)}</p></div>"); if (!string.IsNullOrWhiteSpace(order.BillingAddress)) sb.Append($"<div><h4>Billing</h4><p class='pre'>{E(order.BillingAddress)}</p></div>"); sb.Append("</div>"); }
+        if (!string.IsNullOrWhiteSpace(order.Notes)) { sb.Append("<h3>Notes</h3><p class='pre'>" + E(order.Notes) + "</p>"); }
+        if (admin) sb.Append("<p class='meta'>Internal notification – do not forward externally without review.</p>");
+        return WrapEmail(sb.ToString(), accent1, accent2);
+    }
 
-        return $@"<!DOCTYPE html>
-        <html>
-        <head>
-            <title>New Cash Order for Delivery</title>
-        </head>
-        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
-            <div style='background-color: #f8f9fa; padding: 20px; border-radius: 8px;'>
-                <h2 style='color: #2c5aa0; margin-top: 0;'>New Cash Order for Delivery</h2>
-                
-                <p>A new cash order has been placed and requires delivery coordination.</p>
-                
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Order Summary</h3>
-                    <p><strong>Order Number:</strong> {HtmlEncode(order.OrderNumber)}</p>
-                    <p><strong>Customer Email:</strong> {HtmlEncode(customerEmail)}</p>
-                    <p><strong>Order Date:</strong> {orderDate}</p>
-                    <p><strong>Payment Method:</strong> Cash on Delivery</p>
-                    <p><strong>Status:</strong> {order.Status}</p>
-                    <p><strong>Estimated Delivery:</strong> {estimatedDelivery}</p>
-                    <p><strong>Cash to Collect:</strong> <span style='font-weight: bold; color: #28a745;'>${totalAmount:F2}</span></p>
-                </div>
+    private string BuildCheckoutCancelledEmail(List<CartProduct> cart, string customerEmail, bool admin, string accent1, string accent2)
+    {
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        string Money(decimal? v) => v.HasValue ? v.Value.ToString("C2") : "$0.00";
+        var subtotal = cart.Sum(c => (c.Price ?? 0m) * c.Quantity);
+        var sb = new StringBuilder();
+        sb.Append($"<h2 class='h'>{(admin ? "Customer Cancelled Checkout" : "Checkout Cancelled")}</h2>");
+        if (admin) sb.Append($"<p class='meta'><strong>Customer:</strong> {E(customerEmail)}</p>"); else sb.Append("<p class='lead'>Your payment was cancelled. Items remain in your cart.</p>");
+        sb.Append("<h3>Items In Cart</h3><table class='data wide'><tr><th>#</th><th style='text-align:left'>Item</th><th>Qty</th><th style='text-align:right'>Unit</th><th style='text-align:right'>Line Total</th></tr>");
+        int i = 1; foreach (var item in cart) { var line = (item.Price ?? 0m) * item.Quantity; sb.Append($"<tr><td>{i}</td><td>{E(item.DisplayName)}</td><td>{item.Quantity}</td><td class='num'>{Money(item.Price)}</td><td class='num'>{Money(line)}</td></tr>"); i++; }
+        if (!cart.Any()) sb.Append("<tr><td colspan='5' class='empty'>No items were found for this cancelled session.</td></tr>");
+        sb.Append("</table><p><strong>Subtotal:</strong> " + Money(subtotal) + "</p>");
+        if (!admin) sb.Append("<p>You can return and complete your purchase at any time.</p>");
+        return WrapEmail(sb.ToString(), accent1, accent2);
+    }
 
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Items for Delivery</h3>
-                    <table style='width: 100%; border-collapse: collapse;'>
-                        <thead>
-                            <tr style='background-color: #f8f9fa;'>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: left;'>Product</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: center;'>Qty</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Price</th>
-                                <th style='padding: 8px; border-bottom: 2px solid #dee2e6; text-align: right;'>Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {itemsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Subtotal:</td>
-                                <td style='padding: 8px; text-align: right;'>${subtotal:F2}</td>
-                            </tr>
-                            {(taxAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Tax:</td>
-                                <td style='padding: 8px; text-align: right;'>${taxAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            {(shippingAmount > 0 ? $@"<tr>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Delivery:</td>
-                                <td style='padding: 8px; text-align: right;'>${shippingAmount:F2}</td>
-                            </tr>" : string.Empty)}
-                            <tr style='font-weight: bold; background-color: #f8f9fa; border-top: 2px solid #dee2e6;'>
-                                <td colspan='3' style='padding: 8px; text-align: right;'>Total Cash to Collect:</td>
-                                <td style='padding: 8px; text-align: right;'>${totalAmount:F2}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+    private string BuildServiceOrderEmail(string title, ServiceOrder order, string customerEmail, bool admin, string accent1, string accent2)
+    {
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        string Money(decimal? v) => v.HasValue ? v.Value.ToString("C2") : "$0.00";
+        var sb = new StringBuilder();
+        sb.Append($"<h2 class='h'>{E(title)}</h2>");
+        sb.Append("<table class='data compact'><tr><th>Order #</th><th>Status</th><th>Date (UTC)</th><th>Payment</th><th>Customer</th></tr>");
+        sb.Append($"<tr><td>{E(order.OrderNumber)}</td><td>{order.Status}</td><td>{order.OrderDate:yyyy-MM-dd HH:mm}</td><td>{order.PaymentMethod}</td><td>{E(customerEmail)}</td></tr></table>");
+        sb.Append("<h3>Service Items</h3><table class='data wide'><tr><th>#</th><th style='text-align:left'>Service</th><th>Hours</th><th style='text-align:right'>Unit</th><th style='text-align:right'>Line Total</th></tr>");
+        int idx = 1; foreach (var it in order.Items) { var name = it.Service?.Name ?? (it.ServiceId.HasValue ? $"Service {it.ServiceId}" : "Service"); var hours = it.HoursActual ?? it.HoursEstimated ?? 1m; var total = it.TotalPrice ?? (it.UnitPrice ?? 0) * hours; sb.Append($"<tr><td>{idx}</td><td>{E(name)}</td><td>{hours:0.##}</td><td class='num'>{Money(it.UnitPrice)}</td><td class='num'>{Money(total)}</td></tr>"); idx++; }
+        if (!order.Items.Any()) sb.Append("<tr><td colspan='5' class='empty'>No service line items.</td></tr>");
+        sb.Append("</table>");
+        if (order.Expenses.Any()) { sb.Append("<h3>Expenses</h3><table class='data wide'><tr><th>#</th><th style='text-align:left'>Description</th><th style='text-align:right'>Amount</th></tr>"); int j = 1; foreach (var ex in order.Expenses) { sb.Append($"<tr><td>{j}</td><td>{E(ex.Description)}</td><td class='num'>{Money(ex.Amount)}</td></tr>"); j++; } sb.Append("</table>"); }
+        sb.Append("<div class='totals'><table><tr><td>Subtotal</td><td class='num'>" + Money(order.Subtotal) + "</td></tr><tr><td>Tax</td><td class='num'>" + Money(order.TaxAmount) + "</td></tr>");
+        if (order.ExpenseAmount.HasValue) sb.Append("<tr><td>Expenses</td><td class='num'>" + Money(order.ExpenseAmount) + "</td></tr>");
+        sb.Append("<tr class='grand'><td>Total</td><td class='num'>" + Money(order.TotalAmount) + "</td></tr>");
+        if (order.ScheduledStartDate.HasValue) sb.Append($"<tr><td>Scheduled Start</td><td class='num'>{order.ScheduledStartDate:yyyy-MM-dd}</td></tr>");
+        if (order.ScheduledEndDate.HasValue) sb.Append($"<tr><td>Scheduled End</td><td class='num'>{order.ScheduledEndDate:yyyy-MM-dd}</td></tr>");
+        if (order.RequiresOnsite && !string.IsNullOrWhiteSpace(order.OnsiteAddress)) sb.Append($"<tr><td>On-site Address</td><td class='num'>{E(order.OnsiteAddress)}</td></tr>");
+        sb.Append("</table></div>");
+        if (!string.IsNullOrWhiteSpace(order.Notes)) sb.Append("<h3>Notes</h3><p class='pre'>" + E(order.Notes) + "</p>");
+        if (admin) sb.Append("<p class='meta'>Internal notification</p>");
+        return WrapEmail(sb.ToString(), accent1, accent2);
+    }
 
-                <div style='background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;'>
-                    <h3 style='margin-top: 0; color: #2c5aa0;'>Delivery Information</h3>
-                    <h4 style='margin-top: 0; color: #495057;'>Delivery Address</h4>
-                    <p>{shippingInfo}</p>
-                    
-                    <h4 style='margin-top: 20px; color: #495057;'>Special Instructions</h4>
-                    <p>{notesInfo}</p>
-                </div>
+    private string BuildServiceOrderStatusUpdate(ServiceOrder order, string customerEmail, ServiceOrderStatus oldStatus, string accent1, string accent2)
+    {
+        string E(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
+        var sb = new StringBuilder();
+        sb.Append("<h2 class='h'>Service Order Status Update</h2>");
+        sb.Append($"<p>Your service order <strong>{E(order.OrderNumber)}</strong> status changed from <strong>{oldStatus}</strong> to <strong>{order.Status}</strong>.</p>");
+        if (order.ScheduledStartDate.HasValue) sb.Append($"<p><strong>Scheduled Start:</strong> {order.ScheduledStartDate:yyyy-MM-dd}</p>");
+        if (order.ScheduledEndDate.HasValue) sb.Append($"<p><strong>Scheduled End:</strong> {order.ScheduledEndDate:yyyy-MM-dd}</p>");
+        if (!string.IsNullOrWhiteSpace(order.Notes)) sb.Append("<h3>Notes</h3><p class='pre'>" + E(order.Notes) + "</p>");
+        return WrapEmail(sb.ToString(), accent1, accent2);
+    }
 
-                <div style='background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;'>
-                    <h3 style='margin-top: 0; color: #155724;'>Driver Instructions</h3>
-                    <p><strong>Cash Collection:</strong> Collect exactly ${totalAmount:F2} in cash</p>
-                    <p><strong>Customer Contact:</strong> Call customer before delivery</p>
-                    <p><strong>Receipt:</strong> Provide customer with delivery receipt (attached)</p>
-                    <p><strong>Change:</strong> Be prepared to make change if customer doesn't have exact amount</p>
-                </div>
-
-                <div style='background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;'>
-                    <h3 style='margin-top: 0; color: #856404;'>Next Steps</h3>
-                    <p><strong>1. Prepare Order:</strong> Package items for delivery</p>
-                    <p><strong>2. Schedule Delivery:</strong> Contact customer to arrange delivery time</p>
-                    <p><strong>3. Dispatch Driver:</strong> Provide driver with delivery receipt and change</p>
-                    <p><strong>4. Complete Delivery:</strong> Update order status to 'Delivered' after successful cash collection</p>
-                </div>
-
-                <p>The delivery receipt has been sent to the customer and is attached for driver reference.</p>
-            </div>
-        </body>
-        </html>";
+    // Central wrapper with dynamic accent colors
+    private string WrapEmail(string inner, string accent1 = "#0d6efd", string accent2 = "#6610f2")
+    {
+        string style = $"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'/>" +
+               "<title>Notification</title><style>:root{--accent1:" + accent1 + ";--accent2:" + accent2 + ";}body{margin:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#212529;-webkit-font-smoothing:antialiased;}a{color:var(--accent1);text-decoration:none}h1,h2,h3,h4{font-weight:600;margin:0 0 12px}p{line-height:1.5;margin:0 0 12px}.wrapper{max-width:680px;margin:0 auto;padding:32px 24px}.card{background:#ffffff;border:1px solid #e4e6eb;border-radius:12px;padding:40px 44px;box-shadow:0 2px 4px rgba(0,0,0,.04),0 4px 16px -2px rgba(0,0,0,.06);}table{border-collapse:collapse;width:100%;}table.data{margin:12px 0 20px;font-size:13px;}table.data th,table.data td{padding:8px 10px;border:1px solid #e5e7eb;vertical-align:top;background:#fff;}table.data th{background:#f1f3f5;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#495057;}table.data.compact th,table.data.compact td{padding:6px 8px}table.data.wide th:first-child{width:40px}.totals{margin:20px 0 8px;display:flex;justify-content:flex-end} .totals table{width:auto;font-size:13px;} .totals td{padding:4px 10px;} .totals tr.grand td{font-size:14px;font-weight:600;border-top:2px solid var(--accent1);} .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#fff;margin:4px 0 12px} .badge.danger{background:linear-gradient(90deg,#dc3545,#b02a37)}.lead{color:#495057;font-size:14px;margin-top:0}.pre{white-space:pre-wrap;word-break:break-word}.meta{font-size:12px;color:#6c757d}.empty{text-align:center;color:#6c757d;font-style:italic}.cols{display:flex;gap:24px;margin-top:24px} .cols>div{flex:1;min-width:0;background:#fff;border:1px solid #e5e7eb;padding:12px 16px;border-radius:8px} .cols h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#495057} @media (max-width:640px){.card{padding:28px 24px}.cols{flex-direction:column;gap:12px}table.data th,table.data td{font-size:12px;padding:6px 6px}.totals td{padding:4px 6px}} .h{background:linear-gradient(90deg,var(--accent1),var(--accent2));-webkit-background-clip:text;color:transparent}</style></head><body>";
+        return style + "<div class='wrapper'><div class='card'>" + inner + "<hr style='margin:32px 0 16px;border:none;border-top:1px solid #e9ecef'><p class='meta'>Automated message • ProductReviews</p></div><p style='text-align:center;margin:16px 0 32px;font-size:11px;color:#94a3b8'>Please do not reply directly to this automated email.</p></div></body></html>";
     }
 }

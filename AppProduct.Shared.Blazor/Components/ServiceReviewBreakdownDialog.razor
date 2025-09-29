@@ -1,0 +1,139 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Service Reviews</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @* Overall Rating Summary *@
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.h3" Color="Color.Primary" Class="font-weight-bold">
+                        @(AverageRating?.ToString("F1") ?? "0.0")
+                    </MudText>
+                    <StarRating Value="@AverageRating"
+                               AverageRating="@AverageRating"
+                               ReadOnly="true"
+                               Size="Size.Large"
+                               AllowHalfStars="true" />
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                        @TotalReviews total @(TotalReviews == 1 ? "review" : "reviews")
+                    </MudText>
+                </MudStack>
+                
+                @* Rating Distribution Bars *@
+                <MudStack Spacing="1" Style="flex-grow: 1;">
+                    @for (int rating = 5; rating >= 1; rating--)
+                    {
+                        var currentRating = rating;
+                        var count = GetRatingCount(currentRating);
+                        var percentage = TotalReviews > 0 ? (count * 100.0 / TotalReviews) : 0;
+                        
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudText Typo="Typo.caption" Style="min-width: 20px;">@currentRating★</MudText>
+                            <MudProgressLinear Value="@percentage" 
+                                             Color="Color.Warning" 
+                                             Size="Size.Small" 
+                                             Style="flex-grow: 1; height: 8px;" />
+                            <MudText Typo="Typo.caption" Style="min-width: 40px;">@count</MudText>
+                        </MudStack>
+                    }
+                </MudStack>
+            </MudStack>
+            
+            @* Recent Reviews Preview *@
+            @if (Reviews.Any())
+            {
+                <MudDivider />
+                <MudText Typo="Typo.h6">Recent Reviews</MudText>
+                
+                @foreach (var review in Reviews.Take(3))
+                {
+                    <MudCard Elevation="1" Class="pa-4">
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <StarRating Value="@review.Rating"
+                                               ReadOnly="true"
+                                               Size="Size.Small" />
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">
+                                        @review.CustomerName
+                                    </MudText>
+                                    @if (review.IsVerifiedCustomer)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.Verified">
+                                            Verified Customer
+                                        </MudChip>
+                                    }
+                                </MudStack>
+                                <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                    @review.ReviewDate?.ToString("MMM dd, yyyy")
+                                </MudText>
+                            </MudStack>
+                            
+                            @if (!string.IsNullOrWhiteSpace(review.Title))
+                            {
+                                <MudText Typo="Typo.subtitle2" Class="font-weight-medium">
+                                    @review.Title
+                                </MudText>
+                            }
+                            
+                            @if (!string.IsNullOrWhiteSpace(review.ReviewText))
+                            {
+                                <MudText Typo="Typo.body2">
+                                    @(review.ReviewText.Length > 200 ? review.ReviewText.Substring(0, 200) + "..." : review.ReviewText)
+                                </MudText>
+                            }
+                            
+                            @if (review.HelpfulVotes > 0)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                    @review.HelpfulVotes people found this helpful
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudCard>
+                }
+                
+                @if (Reviews.Count > 3)
+                {
+                    <MudButton Variant="Variant.Text" FullWidth="true" OnClick="ViewAllReviews">
+                        View All @TotalReviews Reviews
+                    </MudButton>
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public decimal? AverageRating { get; set; }
+    [Parameter] public int TotalReviews { get; set; }
+    [Parameter] public List<ServiceReview> Reviews { get; set; } = new();
+    [Parameter] public long? ServiceId { get; set; }
+
+    private int GetRatingCount(int rating)
+    {
+        return Reviews.Count(r => r.Rating.HasValue && Math.Round(r.Rating.Value) == rating);
+    }
+
+    private void ViewAllReviews()
+    {
+        if (ServiceId.HasValue)
+        {
+            Navigation.NavigateTo($"/servicereview?serviceId={ServiceId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/servicereview");
+        }
+        MudDialog.Close();
+    }
+}

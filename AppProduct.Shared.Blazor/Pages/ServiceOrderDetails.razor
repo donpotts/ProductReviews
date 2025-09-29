@@ -1,0 +1,262 @@
+@page "/service-orders/{OrderId:long}"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>Service Order Details</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (serviceOrder == null)
+    {
+        <MudAlert Severity="Severity.Error">Service order not found.</MudAlert>
+    }
+    else
+    {
+        <MudStack Spacing="4">
+            <!-- Header -->
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudGrid>
+                    <MudItem xs="12" md="8">
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.h4">Service Order #@serviceOrder.OrderNumber</MudText>
+                            <MudText Typo="Typo.body1" Color="Color.Default">
+                                Ordered on @serviceOrder.OrderDate?.ToString("MMMM dd, yyyy")
+                            </MudText>
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" md="4" Class="d-flex justify-end">
+                        <MudStack AlignItems="AlignItems.End" Spacing="2">
+                            <ServiceOrderStatusChip Status="serviceOrder.Status" />
+                            <MudText Typo="Typo.h5" Color="Color.Primary">
+                                @serviceOrder.TotalAmount?.ToString("C")
+                            </MudText>
+                        </MudStack>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Contact Information -->
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Contact Information</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">Contact Person</MudText>
+                            <MudText>@(serviceOrder.ContactPerson ?? "Not specified")</MudText>
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">Email</MudText>
+                            <MudText>@(serviceOrder.ContactEmail ?? "Not specified")</MudText>
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">Phone</MudText>
+                            <MudText>@(serviceOrder.ContactPhone ?? "Not specified")</MudText>
+                        </MudStack>
+                    </MudItem>
+                    @if (serviceOrder.RequiresOnsite && !string.IsNullOrEmpty(serviceOrder.OnsiteAddress))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.subtitle2">On-site Address</MudText>
+                                <MudText>@serviceOrder.OnsiteAddress</MudText>
+                            </MudStack>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Service Items -->
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Services Requested</MudText>
+                @if (serviceOrder.Items?.Any() == true)
+                {
+                    <MudStack Spacing="3">
+                        @foreach (var item in serviceOrder.Items)
+                        {
+                            <MudCard Elevation="1">
+                                <MudCardContent>
+                                    <MudGrid>
+                                        <MudItem xs="12" md="6">
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.subtitle1">
+                                                    @(item.Service?.Name ?? "Service")
+                                                </MudText>
+                                                <MudText Typo="Typo.body2" Color="Color.Default">
+                                                    @(item.Service?.Description ?? "No description available")
+                                                </MudText>
+                                            </MudStack>
+                                        </MudItem>
+                                        <MudItem xs="12" md="6">
+                                            <MudGrid>
+                                                <MudItem xs="6">
+                                                    <MudStack Spacing="0">
+                                                        <MudText Typo="Typo.body2" Color="Color.Default">Hours</MudText>
+                                                        <MudText Typo="Typo.body1">@item.HoursEstimated</MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                                <MudItem xs="6">
+                                                    <MudStack Spacing="0">
+                                                        <MudText Typo="Typo.body2" Color="Color.Default">Rate</MudText>
+                                                        <MudText Typo="Typo.body1">@item.UnitPrice?.ToString("C")</MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                                <MudItem xs="12">
+                                                    <MudStack Spacing="0">
+                                                        <MudText Typo="Typo.subtitle2" Color="Color.Primary">Total</MudText>
+                                                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">@item.TotalPrice?.ToString("C")</MudText>
+                                                    </MudStack>
+                                                </MudItem>
+                                            </MudGrid>
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudCardContent>
+                            </MudCard>
+                        }
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText Color="Color.Default">No service items found.</MudText>
+                }
+            </MudPaper>
+
+            <!-- Schedule Information -->
+            @if (serviceOrder.ScheduledStartDate.HasValue || serviceOrder.ScheduledEndDate.HasValue || serviceOrder.ActualStartDate.HasValue || serviceOrder.ActualEndDate.HasValue)
+            {
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3">Schedule</MudText>
+                    <MudGrid>
+                        @if (serviceOrder.ScheduledStartDate.HasValue)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.subtitle2">Scheduled Start</MudText>
+                                    <MudText>@serviceOrder.ScheduledStartDate?.ToString("MMMM dd, yyyy")</MudText>
+                                </MudStack>
+                            </MudItem>
+                        }
+                        @if (serviceOrder.ScheduledEndDate.HasValue)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.subtitle2">Scheduled End</MudText>
+                                    <MudText>@serviceOrder.ScheduledEndDate?.ToString("MMMM dd, yyyy")</MudText>
+                                </MudStack>
+                            </MudItem>
+                        }
+                        @if (serviceOrder.ActualStartDate.HasValue)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.subtitle2">Actual Start</MudText>
+                                    <MudText>@serviceOrder.ActualStartDate?.ToString("MMMM dd, yyyy")</MudText>
+                                </MudStack>
+                            </MudItem>
+                        }
+                        @if (serviceOrder.ActualEndDate.HasValue)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.subtitle2">Actual End</MudText>
+                                    <MudText>@serviceOrder.ActualEndDate?.ToString("MMMM dd, yyyy")</MudText>
+                                </MudStack>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            <!-- Notes -->
+            @if (!string.IsNullOrEmpty(serviceOrder.Notes) || !string.IsNullOrEmpty(serviceOrder.CompletionNotes))
+            {
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudText Typo="Typo.h6" Class="mb-3">Notes</MudText>
+                    @if (!string.IsNullOrEmpty(serviceOrder.Notes))
+                    {
+                        <MudStack Spacing="1" Class="mb-3">
+                            <MudText Typo="Typo.subtitle2">Service Notes</MudText>
+                            <MudText>@serviceOrder.Notes</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(serviceOrder.CompletionNotes))
+                    {
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle2">Completion Notes</MudText>
+                            <MudText>@serviceOrder.CompletionNotes</MudText>
+                        </MudStack>
+                    }
+                </MudPaper>
+            }
+
+            <!-- Actions -->
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Default" 
+                              StartIcon="@Icons.Material.Filled.ArrowBack"
+                              OnClick="NavigateBack">
+                        Back to Orders
+                    </MudButton>
+                    
+                    @if (serviceOrder.Status == ServiceOrderStatus.Pending)
+                    {
+                        <MudButton Variant="Variant.Outlined" 
+                                  Color="Color.Warning" 
+                                  StartIcon="@Icons.Material.Filled.Cancel">
+                            Cancel Order
+                        </MudButton>
+                    }
+                </MudStack>
+            </MudPaper>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public long OrderId { get; set; }
+    
+    private ServiceOrder? serviceOrder;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServiceOrder();
+    }
+
+    private async Task LoadServiceOrder()
+    {
+        try
+        {
+            isLoading = true;
+            serviceOrder = await AppService.GetServiceOrderAsync(OrderId);
+            
+            if (serviceOrder == null)
+            {
+                Snackbar.Add("Service order not found.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading service order: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/my-orders");
+    }
+}

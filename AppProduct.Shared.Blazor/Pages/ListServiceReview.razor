@@ -1,0 +1,213 @@
+@page "/service-reviews"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+<PageTitle>Manage Service Reviews</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.RateReview" Class="mr-2" />
+                Manage Service Reviews
+            </MudText>
+            <MudButton Variant="Variant.Filled" 
+                      Color="Color.Primary" 
+                      StartIcon="@Icons.Material.Filled.Add"
+                      OnClick="NavigateToAdd">
+                Add Review
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Class="mb-4">
+                <MudTextField @bind-Value="searchTerm" 
+                            Label="Search reviews..." 
+                            Variant="Variant.Outlined"
+                            Adornment="Adornment.End" 
+                            AdornmentIcon="@Icons.Material.Filled.Search"
+                            OnKeyUp="OnSearchKeyUp"
+                            Class="flex-grow-1" />
+                <MudButton Variant="Variant.Outlined" OnClick="LoadReviews">Refresh</MudButton>
+            </MudStack>
+
+            @if (isLoading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="mb-4" />
+            }
+
+            @if (reviews == null)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else if (!reviews.Any())
+            {
+                <MudPaper Class="pa-8" Elevation="1">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                        <MudIcon Icon="@Icons.Material.Filled.RateReview" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6">No reviews found</MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="NavigateToAdd">
+                            Add Your First Review
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <MudDataGrid Items="@filteredReviews" 
+                           Loading="@isLoading"
+                           Hover="true" 
+                           Breakpoint="Breakpoint.Sm"
+                           Height="600px"
+                           FixedHeader="true">
+                    <Columns>
+                        <PropertyColumn Property="x => x.Service!.Name" Title="Service" />
+                        <PropertyColumn Property="x => x.CustomerName" Title="Customer" />
+                        <PropertyColumn Property="x => x.Rating" Title="Rating" Format="F1">
+                            <CellTemplate>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudRating ReadOnly="true" SelectedValue="@((int)(context.Item.Rating ?? 0))" MaxValue="5" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2">(@(context.Item.Rating?.ToString("F1") ?? "0"))</MudText>
+                                </MudStack>
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.Title" Title="Title" />
+                        <PropertyColumn Property="x => x.IsApproved" Title="Approved">
+                            <CellTemplate>
+                                <MudChip Color="@(context.Item.IsApproved ? Color.Success : Color.Warning)" 
+                                        Size="Size.Small">
+                                    @(context.Item.IsApproved ? "Yes" : "Pending")
+                                </MudChip>
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.IsVerifiedCustomer" Title="Verified">
+                            <CellTemplate>
+                                <MudChip Color="@(context.Item.IsVerifiedCustomer ? Color.Success : Color.Default)" 
+                                        Size="Size.Small">
+                                    @(context.Item.IsVerifiedCustomer ? "Yes" : "No")
+                                </MudChip>
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.ReviewDate" Title="Date" Format="yyyy-MM-dd" />
+                        <TemplateColumn CellClass="d-flex justify-end" Sortable="false">
+                            <CellTemplate>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                                 Color="Color.Info" 
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => ViewReview(context.Item))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                 Color="Color.Primary" 
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => NavigateToEdit(context.Item.Id))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error" 
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => DeleteReview(context.Item))" />
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private IEnumerable<ServiceReview>? reviews;
+    private IEnumerable<ServiceReview> filteredReviews => reviews?.Where(FilterReview) ?? Enumerable.Empty<ServiceReview>();
+    private string searchTerm = string.Empty;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReviews();
+    }
+
+    private async Task LoadReviews()
+    {
+        isLoading = true;
+        try
+        {
+            reviews = await AppService.GetServiceReviewsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading reviews: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool FilterReview(ServiceReview review)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return true;
+
+        var searchLower = searchTerm.ToLowerInvariant();
+        return (review.CustomerName?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (review.Title?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (review.ReviewText?.ToLowerInvariant().Contains(searchLower) ?? false) ||
+               (review.Service?.Name?.ToLowerInvariant().Contains(searchLower) ?? false);
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToAdd()
+    {
+        Navigation.NavigateTo("/service-reviews/add");
+    }
+
+    private void NavigateToEdit(long? reviewId)
+    {
+        if (reviewId.HasValue)
+        {
+            Navigation.NavigateTo($"/service-reviews/edit/{reviewId}");
+        }
+    }
+
+    private async Task ViewReview(ServiceReview review)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Review"] = review
+        };
+
+        await DialogService.ShowAsync<ServiceReviewDetailsDialog>("Review Details", parameters);
+    }
+
+    private async Task DeleteReview(ServiceReview review)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Delete Service Review",
+            $"Are you sure you want to delete the review by '{review.CustomerName}'?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await AppService.DeleteServiceReviewAsync(review.Id ?? 0);
+                Snackbar.Add("Review deleted successfully", Severity.Success);
+                await LoadReviews();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting review: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

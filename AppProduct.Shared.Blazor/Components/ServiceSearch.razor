@@ -1,0 +1,159 @@
+@using AppProduct.Shared.Models
+@inject AppService AppService
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-3">Search & Filter Services</MudText>
+    
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4">
+            <MudTextField @bind-Value="searchQuery" 
+                         Label="Search services" 
+                         Variant="Variant.Outlined"
+                         Adornment="Adornment.End"
+                         AdornmentIcon="@Icons.Material.Filled.Search"
+                         OnAdornmentClick="PerformSearch" />
+        </MudItem>
+        
+        <MudItem xs="12" md="2">
+            <MudSelect @bind-Value="selectedCategoryId" 
+                      Label="Category" 
+                      Variant="Variant.Outlined"
+                      Clearable="true"
+                      T="long?">
+                @if (categories != null)
+                {
+                    @foreach (var category in categories)
+                    {
+                        <MudSelectItem Value="@category.Id">@category.Name</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+        </MudItem>
+        
+        <MudItem xs="12" md="2">
+            <MudSelect @bind-Value="selectedCompanyId" 
+                      Label="Company" 
+                      Variant="Variant.Outlined"
+                      Clearable="true"
+                      T="long?">
+                @if (companies != null)
+                {
+                    @foreach (var company in companies)
+                    {
+                        <MudSelectItem Value="@company.Id">@company.Name</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+        </MudItem>
+        
+        <MudItem xs="6" md="1">
+            <MudNumericField @bind-Value="minPrice" 
+                            Label="Min Rate" 
+                            Variant="Variant.Outlined"
+                            Format="C"
+                            T="decimal?" />
+        </MudItem>
+        
+        <MudItem xs="6" md="1">
+            <MudNumericField @bind-Value="maxPrice" 
+                            Label="Max Rate" 
+                            Variant="Variant.Outlined"
+                            Format="C"
+                            T="decimal?" />
+        </MudItem>
+        
+        <MudItem xs="12" md="2">
+            <MudStack Spacing="2">
+                <MudSwitch @bind-Value="availableOnly" Label="Available Only" Color="Color.Primary" />
+                <MudSwitch @bind-Value="onsiteOnly" Label="Onsite Services" Color="Color.Primary" />
+                <MudStack Row="true" Spacing="1" Justify="Justify.FlexStart">
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              OnClick="PerformSearch"
+                              Size="Size.Small"
+                              StartIcon="@Icons.Material.Filled.Search">
+                        SEARCH
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Secondary" 
+                              OnClick="ClearFilters"
+                              Size="Size.Small"
+                              StartIcon="@Icons.Material.Filled.Clear">
+                        CLEAR
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public EventCallback<Service[]?> OnSearchResults { get; set; }
+    [Parameter] public EventCallback OnSearching { get; set; }
+
+    private string? searchQuery;
+    private long? selectedCategoryId;
+    private long? selectedCompanyId;
+    private decimal? minPrice;
+    private decimal? maxPrice;
+    private bool availableOnly = false;
+    private bool onsiteOnly = false;
+
+    private ServiceCategory[]? categories;
+    private ServiceCompany[]? companies;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFilterOptions();
+    }
+
+    private async Task LoadFilterOptions()
+    {
+        try
+        {
+            categories = await AppService.ListServiceCategoryAsync();
+            companies = await AppService.ListServiceCompanyAsync();
+        }
+        catch
+        {
+            // Handle errors silently
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        try
+        {
+            await OnSearching.InvokeAsync();
+            
+            var results = await AppService.SearchServicesAsync(
+                searchQuery,
+                selectedCategoryId,
+                selectedCompanyId,
+                minPrice,
+                maxPrice,
+                availableOnly ? true : null,
+                onsiteOnly ? true : null
+            );
+            
+            await OnSearchResults.InvokeAsync(results);
+        }
+        catch
+        {
+            await OnSearchResults.InvokeAsync(null);
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        searchQuery = null;
+        selectedCategoryId = null;
+        selectedCompanyId = null;
+        minPrice = null;
+        maxPrice = null;
+        availableOnly = false;
+        onsiteOnly = false;
+        
+        await PerformSearch();
+    }
+}

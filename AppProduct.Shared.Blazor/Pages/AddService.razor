@@ -1,0 +1,299 @@
+@page "/services/add"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.ComponentModel.DataAnnotations
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Add Service</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" 
+                          OnClick="GoBack" 
+                          Color="Color.Default" />
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                Add New Service
+            </MudText>
+        </MudStack>
+
+        <MudPaper Class="pa-6" Elevation="2">
+            <EditForm Model="@service" OnValidSubmit="@SaveService">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <!-- Basic Information -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">Basic Information</MudText>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="service.Name" 
+                                    Label="Service Name" 
+                                    Required="true"
+                                    Variant="Variant.Outlined" />
+                        <ValidationMessage For="@(() => service.Name)" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="service.SKU" 
+                                    Label="SKU" 
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="service.Description" 
+                                    Label="Short Description" 
+                                    Lines="2"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="service.DetailedDescription" 
+                                    Label="Detailed Description" 
+                                    Lines="4"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Pricing Information -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Pricing Information</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="service.PricingType" 
+                                 Label="Pricing Type" 
+                                 Variant="Variant.Outlined">
+                            @foreach (ServicePricingType pricingType in Enum.GetValues<ServicePricingType>())
+                            {
+                                <MudSelectItem Value="@pricingType">@pricingType</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="service.Complexity" 
+                                 Label="Service Complexity" 
+                                 Variant="Variant.Outlined">
+                            @foreach (ServiceComplexity complexity in Enum.GetValues<ServiceComplexity>())
+                            {
+                                <MudSelectItem Value="@complexity">@complexity</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    @if (service.PricingType == ServicePricingType.Hourly)
+                    {
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="service.HourlyRate" 
+                                           Label="Hourly Rate ($)" 
+                                           Variant="Variant.Outlined"
+                                           Min="0" 
+                                           T="decimal?" />
+                        </MudItem>
+                    }
+
+                    @if (service.PricingType == ServicePricingType.Daily)
+                    {
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="service.DailyRate" 
+                                           Label="Daily Rate ($)" 
+                                           Variant="Variant.Outlined"
+                                           Min="0" 
+                                           T="decimal?" />
+                        </MudItem>
+                    }
+
+                    @if (service.PricingType == ServicePricingType.Project)
+                    {
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="service.ProjectRate" 
+                                           Label="Project Rate ($)" 
+                                           Variant="Variant.Outlined"
+                                           Min="0" 
+                                           T="decimal?" />
+                        </MudItem>
+                    }
+
+                    <!-- Service Details -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Service Details</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudNumericField @bind-Value="service.EstimatedDurationHours" 
+                                       Label="Estimated Duration (Hours)" 
+                                       Variant="Variant.Outlined"
+                                       Min="0" 
+                                       T="int?" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="selectedCategoryId" 
+                                 Label="Service Category" 
+                                 Variant="Variant.Outlined">
+                            <MudSelectItem Value="@((long?)null)">No Category</MudSelectItem>
+                            @if (categories != null)
+                            {
+                                @foreach (var category in categories)
+                                {
+                                    <MudSelectItem Value="@category.Id">@category.Name</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="selectedCompanyId" 
+                                 Label="Service Company" 
+                                 Variant="Variant.Outlined">
+                            <MudSelectItem Value="@((long?)null)">No Company</MudSelectItem>
+                            @if (companies != null)
+                            {
+                                @foreach (var company in companies)
+                                {
+                                    <MudSelectItem Value="@company.Id">@company.Name</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="service.ImageUrl" 
+                                    Label="Image URL" 
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Requirements and Deliverables -->
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="service.Requirements" 
+                                    Label="Requirements" 
+                                    Lines="3"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="service.Deliverables" 
+                                    Label="Deliverables" 
+                                    Lines="3"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Options -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Options</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <MudSwitch @bind-Value="service.IsAvailable" 
+                                 Label="Available" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <MudSwitch @bind-Value="service.RequiresOnsite" 
+                                 Label="Requires On-site" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <MudSwitch @bind-Value="service.IncludesTravel" 
+                                 Label="Includes Travel" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="service.Notes" 
+                                    Label="Notes" 
+                                    Lines="2"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Actions -->
+                    <MudItem xs="12" Class="d-flex justify-end gap-2 mt-4">
+                        <MudButton Variant="Variant.Text" OnClick="GoBack">
+                            Cancel
+                        </MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" 
+                                 Variant="Variant.Filled" 
+                                 Color="Color.Primary"
+                                 Disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <span class="ms-2">Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Service</span>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private Service service = new Service
+    {
+        IsAvailable = true,
+        PricingType = ServicePricingType.Hourly,
+        Complexity = ServiceComplexity.Basic,
+        CreatedDate = DateTime.UtcNow
+    };
+
+    private IEnumerable<ServiceCategory>? categories;
+    private IEnumerable<ServiceCompany>? companies;
+    private long? selectedCategoryId;
+    private long? selectedCompanyId;
+    private bool isSubmitting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            categories = await AppService.GetServiceCategoriesAsync();
+            companies = await AppService.GetServiceCompaniesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookup data: {ex.Message}", Severity.Warning);
+        }
+    }
+
+    private async Task SaveService()
+    {
+        isSubmitting = true;
+        try
+        {
+            service.ServiceCategoryId = selectedCategoryId;
+            service.ServiceCompanyId = selectedCompanyId;
+
+            await AppService.CreateServiceAsync(service);
+            Snackbar.Add("Service created successfully", Severity.Success);
+            Navigation.NavigateTo("/services/list");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating service: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/services/list");
+    }
+}

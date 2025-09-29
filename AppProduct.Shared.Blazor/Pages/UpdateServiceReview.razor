@@ -1,0 +1,314 @@
+@page "/service-reviews/update/{Id:long}"
+@page "/service-reviews/edit/{Id:long}"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.ComponentModel.DataAnnotations
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Update Service Review</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" 
+                          OnClick="GoBack" 
+                          Color="Color.Default" />
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+                Update Service Review
+            </MudText>
+        </MudStack>
+
+        @if (isLoading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (review == null)
+        {
+            <MudAlert Severity="Severity.Error">Service review not found.</MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="pa-6" Elevation="2">
+                <EditForm Model="@review" OnValidSubmit="@SaveReview">
+                    <DataAnnotationsValidator />
+                    <MudGrid Spacing="3">
+                        <!-- Service Selection -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3">Service Information</MudText>
+                        </MudItem>
+                        
+                        <MudItem xs="12" md="6">
+                            <MudSelect @bind-Value="selectedServiceId" 
+                                     Label="Service" 
+                                     Required="true"
+                                     Variant="Variant.Outlined">
+                                @if (services != null)
+                                {
+                                    @foreach (var service in services)
+                                    {
+                                        <MudSelectItem Value="@service.Id">@service.Name</MudSelectItem>
+                                    }
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudSelect @bind-Value="review.ReviewCategory" 
+                                     Label="Review Category" 
+                                     Variant="Variant.Outlined">
+                                @foreach (ServiceReviewCategory category in Enum.GetValues<ServiceReviewCategory>())
+                                {
+                                    <MudSelectItem Value="@category">@category</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <!-- Customer Information -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">Customer Information</MudText>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="review.CustomerName" 
+                                        Label="Customer Name" 
+                                        Required="true"
+                                        Variant="Variant.Outlined" />
+                            <ValidationMessage For="@(() => review.CustomerName)" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="review.CustomerEmail" 
+                                        Label="Customer Email" 
+                                        InputType="InputType.Email"
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <!-- Review Details -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">Review Details</MudText>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="review.Title" 
+                                        Label="Review Title" 
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="review.ProjectType" 
+                                        Label="Project Type" 
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="review.ReviewText" 
+                                        Label="Review Text" 
+                                        Lines="4"
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <!-- Ratings -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">Ratings</MudText>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.body1">Overall Rating</MudText>
+                                <MudRating @bind-SelectedValue="overallRating" MaxValue="5" Size="Size.Large" />
+                            </MudStack>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudSwitch @bind-Value="review.WouldRecommend" 
+                                     Label="Would Recommend" 
+                                     Color="Color.Primary" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="3">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.body2">Quality Rating</MudText>
+                                <MudRating @bind-SelectedValue="qualityRating" MaxValue="5" />
+                            </MudStack>
+                        </MudItem>
+
+                        <MudItem xs="12" md="3">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.body2">Timeliness Rating</MudText>
+                                <MudRating @bind-SelectedValue="timelinessRating" MaxValue="5" />
+                            </MudStack>
+                        </MudItem>
+
+                        <MudItem xs="12" md="3">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.body2">Communication Rating</MudText>
+                                <MudRating @bind-SelectedValue="communicationRating" MaxValue="5" />
+                            </MudStack>
+                        </MudItem>
+
+                        <MudItem xs="12" md="3">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.body2">Value Rating</MudText>
+                                <MudRating @bind-SelectedValue="valueRating" MaxValue="5" />
+                            </MudStack>
+                        </MudItem>
+
+                        <!-- Status -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">Status</MudText>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudSwitch @bind-Value="review.IsApproved" 
+                                     Label="Approved" 
+                                     Color="Color.Primary" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudSwitch @bind-Value="review.IsVerifiedCustomer" 
+                                     Label="Verified Customer" 
+                                     Color="Color.Primary" />
+                        </MudItem>
+
+                        <!-- Metadata -->
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-3 mt-4">Metadata</MudText>
+                        </MudItem>
+
+                        <MudItem xs="12" md="4">
+                            <MudTextField Value="@review.CreatedDate?.ToString("MMM dd, yyyy HH:mm")" 
+                                        Label="Created Date" 
+                                        ReadOnly="true"
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="4">
+                            <MudTextField Value="@review.ReviewDate?.ToString("MMM dd, yyyy HH:mm")" 
+                                        Label="Review Date" 
+                                        ReadOnly="true"
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="4">
+                            <MudTextField Value="@review.Id?.ToString()" 
+                                        Label="Review ID" 
+                                        ReadOnly="true"
+                                        Variant="Variant.Outlined" />
+                        </MudItem>
+
+                        <!-- Actions -->
+                        <MudItem xs="12" Class="d-flex justify-end gap-2 mt-4">
+                            <MudButton Variant="Variant.Text" OnClick="GoBack">
+                                Cancel
+                            </MudButton>
+                            <MudButton ButtonType="ButtonType.Submit" 
+                                     Variant="Variant.Filled" 
+                                     Color="Color.Primary"
+                                     Disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                    <span class="ms-2">Updating...</span>
+                                }
+                                else
+                                {
+                                    <span>Update Review</span>
+                                }
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </EditForm>
+            </MudPaper>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public long Id { get; set; }
+    
+    private ServiceReview? review;
+    private IEnumerable<Service>? services;
+    private long? selectedServiceId;
+    private int overallRating = 5;
+    private int qualityRating = 5;
+    private int timelinessRating = 5;
+    private int communicationRating = 5;
+    private int valueRating = 5;
+    private bool isSubmitting = false;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            
+            var servicesTask = AppService.GetServicesAsync();
+            var reviewTask = AppService.GetServiceReviewByIdAsync(Id);
+            
+            await Task.WhenAll(servicesTask, reviewTask);
+            
+            services = await servicesTask;
+            review = await reviewTask;
+
+            if (review != null)
+            {
+                selectedServiceId = review.ServiceId;
+                overallRating = (int)(review.Rating ?? 5);
+                qualityRating = (int)(review.QualityRating ?? 5);
+                timelinessRating = (int)(review.TimelinessRating ?? 5);
+                communicationRating = (int)(review.CommunicationRating ?? 5);
+                valueRating = (int)(review.ValueRating ?? 5);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading data: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveReview()
+    {
+        if (review == null) return;
+        
+        isSubmitting = true;
+        try
+        {
+            review.ServiceId = selectedServiceId;
+            review.Rating = overallRating;
+            review.QualityRating = qualityRating;
+            review.TimelinessRating = timelinessRating;
+            review.CommunicationRating = communicationRating;
+            review.ValueRating = valueRating;
+
+            await AppService.UpdateServiceReviewAsync(review);
+            Snackbar.Add("Service review updated successfully", Severity.Success);
+            Navigation.NavigateTo("/service-reviews");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating review: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/service-reviews");
+    }
+}

@@ -1,9 +1,11 @@
 @page "/checkout"
 @using AppProduct.Shared.Models
+@using Microsoft.AspNetCore.Components.Authorization
 @inject AppService AppService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Checkout</PageTitle>
 
@@ -134,6 +136,12 @@
                                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                                         <MudIcon Icon="@Icons.Material.Filled.Receipt" />
                                         <MudText>Purchase Order</MudText>
+                                    </MudStack>
+                                </MudRadio>
+                                <MudRadio Value="PaymentMethod.PayPal" Color="Color.Primary">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Payment" />
+                                        <MudText>PayPal</MudText>
                                     </MudStack>
                                 </MudRadio>
                                 <MudRadio Value="PaymentMethod.Cash" Color="Color.Primary">
@@ -273,23 +281,27 @@
         {
             isLoading = true;
             var cartTask = AppService.GetShoppingCartAsync();
-            var shippingTask = AppService.GetDefaultShippingRateAsync();
 
             cart = await cartTask;
 
-            try
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
             {
-                defaultShippingRate = await shippingTask;
-                if (defaultShippingRate is not null)
+                try
                 {
-                    shippingAmount = defaultShippingRate.Amount;
+                    var shippingTask = AppService.GetDefaultShippingRateAsync();
+                    defaultShippingRate = await shippingTask;
+                    if (defaultShippingRate is not null)
+                    {
+                        shippingAmount = defaultShippingRate.Amount;
+                    }
                 }
-            }
-            catch (Exception shippingEx)
-            {
-                defaultShippingRate = null;
-                Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
-                Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+                catch (Exception shippingEx)
+                {
+                    defaultShippingRate = null;
+                    Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
+                    Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+                }
             }
         }
         catch (Exception ex)
@@ -381,6 +393,27 @@
                 else
                 {
                     throw new Exception("Failed to create payment session");
+                }
+            }
+            else if (selectedPaymentMethod == PaymentMethod.PayPal)
+            {
+                // Redirect to PayPal Checkout
+                var baseUrl = Navigation.BaseUri.TrimEnd('/');
+                // Ensure we have a valid base URL
+                if (string.IsNullOrEmpty(baseUrl) || (!baseUrl.StartsWith("http://") && !baseUrl.StartsWith("https://")))
+                {
+                    baseUrl = "http://localhost:5000"; // Fallback for development
+                }
+                var sessionResponse = await AppService.CreatePayPalSessionAsync(baseUrl, shipping, billing, GetBillingState(), shippingAmount, notes);
+                
+                // Redirect to PayPal Checkout URL
+                if (sessionResponse?.Url != null)
+                {
+                    Navigation.NavigateTo(sessionResponse.Url, forceLoad: true);
+                }
+                else
+                {
+                    throw new Exception("Failed to create PayPal payment session");
                 }
             }
             else

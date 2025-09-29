@@ -1,0 +1,112 @@
+@inject AppService AppService
+@inject IDialogService DialogService
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="@Class">
+    @if (ShowStars)
+    {
+        <StarRating Value="@AverageRating"
+                   AverageRating="@AverageRating"
+                   ReadOnly="true"
+                   Size="@StarSize"
+                   AllowHalfStars="@AllowHalfStars" />
+    }
+    
+    @if (ShowNumericRating && AverageRating.HasValue)
+    {
+        <MudText Typo="@RatingTypo" Color="Color.Primary" Class="font-weight-bold">
+            @AverageRating.Value.ToString("F1")
+        </MudText>
+    }
+    
+    @if (ShowReviewCount)
+    {
+        <MudText Typo="@CountTypo" Color="Color.Tertiary">
+            (@TotalReviews @(TotalReviews == 1 ? "review" : "reviews"))
+        </MudText>
+    }
+    
+    @if (ShowBreakdown && Reviews.Any())
+    {
+        <MudButton Variant="Variant.Text" 
+                   Size="Size.Small" 
+                   OnClick="@OpenBreakdownDialog">
+            View Breakdown
+        </MudButton>
+    }
+</MudStack>
+
+
+@code {
+    [Parameter] public long ServiceId { get; set; }
+    [Parameter] public decimal? AverageRating { get; set; }
+    [Parameter] public int TotalReviews { get; set; }
+    [Parameter] public List<ServiceReview> Reviews { get; set; } = new();
+    [Parameter] public bool ShowStars { get; set; } = true;
+    [Parameter] public bool ShowNumericRating { get; set; } = true;
+    [Parameter] public bool ShowReviewCount { get; set; } = true;
+    [Parameter] public bool ShowBreakdown { get; set; } = false;
+    [Parameter] public bool AllowHalfStars { get; set; } = true;
+    [Parameter] public MudBlazor.Size StarSize { get; set; } = MudBlazor.Size.Medium;
+    [Parameter] public Typo RatingTypo { get; set; } = Typo.h6;
+    [Parameter] public Typo CountTypo { get; set; } = Typo.body2;
+    [Parameter] public string Class { get; set; } = "";
+
+    private async Task OpenBreakdownDialog()
+    {
+        var parameters = new DialogParameters<ServiceReviewBreakdownDialog>
+        {
+            { x => x.AverageRating, AverageRating },
+            { x => x.TotalReviews, TotalReviews },
+            { x => x.Reviews, Reviews },
+            { x => x.ServiceId, ServiceId }
+        };
+        
+        var options = new DialogOptions
+        {
+            FullWidth = true,
+            MaxWidth = MaxWidth.Small,
+            CloseButton = true
+        };
+        
+        await DialogService.ShowAsync<ServiceReviewBreakdownDialog>("Service Reviews", parameters, options);
+    }
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // If reviews not provided but ServiceId is, fetch them
+        if (ServiceId > 0 && !Reviews.Any())
+        {
+            try
+            {
+                var result = await AppService.ListServiceReviewODataAsync(
+                    top: 100, 
+                    skip: null, 
+                    orderby: "ReviewDate desc", 
+                    filter: $"ServiceId eq {ServiceId}", 
+                    count: true, 
+                    expand: null
+                );
+                
+                if (result?.Value != null)
+                {
+                    Reviews = result.Value.ToList();
+                    TotalReviews = Reviews.Count;
+                    
+                    if (Reviews.Any())
+                    {
+                        var reviewsWithRatings = Reviews.Where(r => r.Rating.HasValue).ToList();
+                        if (reviewsWithRatings.Any())
+                        {
+                            AverageRating = (decimal)reviewsWithRatings.Average(r => r.Rating!.Value);
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Handle gracefully - component will show with provided data
+            }
+        }
+    }
+}

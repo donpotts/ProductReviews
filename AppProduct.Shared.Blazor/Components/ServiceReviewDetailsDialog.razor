@@ -1,0 +1,120 @@
+@using AppProduct.Shared.Models
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        @if (Review != null)
+        {
+            <MudStack Spacing="3">
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h6">Customer: @Review.CustomerName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.body1">
+                            <MudIcon Icon="@Icons.Material.Filled.Star" Color="Color.Warning" />
+                            @Review.Rating?.ToString("F1") / 5.0
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrEmpty(Review.Title))
+                {
+                    <MudText Typo="Typo.h6">@Review.Title</MudText>
+                }
+
+                @if (!string.IsNullOrEmpty(Review.ReviewText))
+                {
+                    <MudText Typo="Typo.body1">@Review.ReviewText</MudText>
+                }
+
+                <MudGrid>
+                    @if (Review.QualityRating.HasValue)
+                    {
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Quality</MudText>
+                            <MudRating SelectedValue="(int)Review.QualityRating.Value" MaxValue="5" ReadOnly="true" />
+                        </MudItem>
+                    }
+                    @if (Review.TimelinessRating.HasValue)
+                    {
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Timeliness</MudText>
+                            <MudRating SelectedValue="(int)Review.TimelinessRating.Value" MaxValue="5" ReadOnly="true" />
+                        </MudItem>
+                    }
+                    @if (Review.CommunicationRating.HasValue)
+                    {
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Communication</MudText>
+                            <MudRating SelectedValue="(int)Review.CommunicationRating.Value" MaxValue="5" ReadOnly="true" />
+                        </MudItem>
+                    }
+                    @if (Review.ValueRating.HasValue)
+                    {
+                        <MudItem xs="6" md="3">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Value</MudText>
+                            <MudRating SelectedValue="(int)Review.ValueRating.Value" MaxValue="5" ReadOnly="true" />
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Would Recommend</MudText>
+                        <MudText Typo="Typo.body1">
+                            @if (Review.WouldRecommend)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.ThumbUp" Color="Color.Success" />
+                                <span>Yes</span>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.ThumbDown" Color="Color.Error" />
+                                <span>No</span>
+                            }
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Review Date</MudText>
+                        <MudText Typo="Typo.body1">@Review.ReviewDate?.ToString("MMM dd, yyyy")</MudText>
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrEmpty(Review.ProjectType))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Project Type: @Review.ProjectType</MudText>
+                }
+
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Status</MudText>
+                        <MudChip T="string" Color="@(Review.IsApproved ? Color.Success : Color.Warning)" Size="Size.Small">
+                            @(Review.IsApproved ? "Approved" : "Pending")
+                        </MudChip>
+                    </MudItem>
+                    @if (Review.IsVerifiedCustomer)
+                    {
+                        <MudItem xs="6">
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
+                                <MudIcon Icon="@Icons.Material.Filled.Verified" Size="Size.Small" />
+                                Verified Customer
+                            </MudChip>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public ServiceReview? Review { get; set; }
+
+    void Cancel() => MudDialog.Cancel();
+}

@@ -1,9 +1,11 @@
 @using AppProduct.Shared.Models
 @using AppProduct.Shared.Blazor.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject CartService CartService
 @inject AppService AppService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @implements IDisposable
 
 <style>
@@ -16,8 +18,12 @@
     }
 </style>
 
-<MudTooltip Text="Shopping Cart">
-    @if (CartService.CartCount > 0)
+@if (isAuthStateLoaded)
+{
+    <AuthorizeView>
+        <Authorized>
+            <MudTooltip Text="Shopping Cart">
+                @if (CartService.CartCount > 0)
     {
         <MudBadge Origin="Origin.CenterCenter" Content="@CartService.CartCount" Color="Color.Error" Overlap="true" 
                   Class="cart-badge-positioned" @onclick="@(() => ToggleCartDrawer(true))" style="cursor: pointer;">
@@ -130,6 +136,9 @@
         }
     </div>
 </MudDrawer>
+        </Authorized>
+    </AuthorizeView>
+}
 
 @code {
     private bool ShoppingCartDrawerOpen { get; set; } = false;
@@ -143,20 +152,32 @@
     private decimal tax => Math.Round(subtotal * 0.0875m, 2);
     private decimal total => subtotal + tax + shippingAmount;
 
+    private bool isAuthStateLoaded = false;
+
     protected override async Task OnInitializedAsync()
     {
         CartService.CartChanged += OnCartChanged;
         await CartService.InitializeAsync();
 
-        try
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthStateLoaded = true;
+        
+        if (authState.User.Identity?.IsAuthenticated == true)
         {
-            defaultShippingRate = await AppService.GetDefaultShippingRateAsync();
-            StateHasChanged();
+            try
+            {
+                defaultShippingRate = await AppService.GetDefaultShippingRateAsync();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to load default shipping rate: {ex.Message}");
+                // Don't show error message - this is expected for unauthenticated users
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"Failed to load default shipping rate: {ex.Message}");
-            Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+            StateHasChanged();
         }
     }
 

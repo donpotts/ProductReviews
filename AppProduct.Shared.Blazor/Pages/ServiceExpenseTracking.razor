@@ -1,0 +1,415 @@
+@page "/service-expenses"
+@page "/service-expenses/{ServiceOrderId:long}"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Service Expense Tracking</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Receipt" Class="mr-2" />
+        Service Expense Tracking
+        @if (selectedServiceOrder != null)
+        {
+            <MudText Typo="Typo.subtitle1" Class="ml-2">
+                - Order #@selectedServiceOrder.Id
+            </MudText>
+        }
+    </MudText>
+
+    <MudStack Spacing="4">
+        <!-- Service Order Selection -->
+        @if (ServiceOrderId == null)
+        {
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">Select Service Order</MudText>
+                <MudSelect Value="selectedServiceOrderId" 
+                          Label="Service Order" 
+                          Variant="Variant.Outlined"
+                          T="long?"
+                          ValueChanged="OnServiceOrderChanged">
+                    @if (serviceOrders != null)
+                    {
+                        @foreach (var order in serviceOrders)
+                        {
+                            <MudSelectItem Value="@order.Id">
+                                Order #@order.Id (@order.OrderDate?.ToString("MMM dd, yyyy"))
+                            </MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudPaper>
+        }
+
+        @if (selectedServiceOrder != null)
+        {
+            <!-- Summary Cards -->
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack>
+                                    <MudText Typo="Typo.h6">@totalExpenses.ToString("C")</MudText>
+                                    <MudText Typo="Typo.body2">Total Expenses</MudText>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Large" Color="Color.Primary" />
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack>
+                                    <MudText Typo="Typo.h6">@approvedExpenses.ToString("C")</MudText>
+                                    <MudText Typo="Typo.body2">Approved</MudText>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack>
+                                    <MudText Typo="Typo.h6">@pendingExpenses.ToString("C")</MudText>
+                                    <MudText Typo="Typo.body2">Pending</MudText>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.HourglassEmpty" Size="Size.Large" Color="Color.Warning" />
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack>
+                                    <MudText Typo="Typo.h6">@expenses?.Count() ?? 0</MudText>
+                                    <MudText Typo="Typo.body2">Total Items</MudText>
+                                </MudStack>
+                                <MudIcon Icon="@Icons.Material.Filled.Receipt" Size="Size.Large" Color="Color.Info" />
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Actions -->
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" 
+                          Color="Color.Primary" 
+                          StartIcon="@Icons.Material.Filled.Add"
+                          OnClick="AddExpense">
+                    Add Expense
+                </MudButton>
+                
+                <MudButton Variant="Variant.Outlined" 
+                          Color="Color.Secondary" 
+                          StartIcon="@Icons.Material.Filled.FileDownload"
+                          OnClick="ExportExpenses"
+                          Disabled="@(expenses?.Any() != true)">
+                    Export Report
+                </MudButton>
+            </MudStack>
+
+            <!-- Expenses Table -->
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">Expense Details</MudText>
+                
+                @if (isLoading)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                }
+                else if (expenses?.Any() != true)
+                {
+                    <MudText Typo="Typo.body1" Color="Color.Tertiary">No expenses recorded yet.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@expenses" Hover="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Date</MudTh>
+                            <MudTh>Type</MudTh>
+                            <MudTh>Description</MudTh>
+                            <MudTh>Amount</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Receipt</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Date">@context.ExpenseDate?.ToString("MMM dd, yyyy")</MudTd>
+                            <MudTd DataLabel="Type">
+                                <MudChip T="string" Color="GetExpenseTypeColor(context.ExpenseType)" Size="Size.Small">
+                                    @context.ExpenseType.ToString()
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Description">@context.Description</MudTd>
+                            <MudTd DataLabel="Amount">@context.Amount.ToString("C")</MudTd>
+                            <MudTd DataLabel="Status">
+                                <MudChip T="string" Color="GetStatusColor(context.ApprovalStatus)" Size="Size.Small">
+                                    @context.ApprovalStatus.ToString()
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Receipt">
+                                @if (!string.IsNullOrEmpty(context.ReceiptUrl))
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Receipt" 
+                                                  Color="Color.Primary" 
+                                                  Size="Size.Small"
+                                                  OnClick="() => ViewReceipt(context.ReceiptUrl)" />
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Tertiary">No receipt</MudText>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudStack Row="true" Spacing="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                  Color="Color.Primary" 
+                                                  Size="Size.Small"
+                                                  OnClick="() => EditExpense(context)" />
+                                    @if (context.ApprovalStatus == ServiceExpenseStatus.Pending)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                      Color="Color.Error" 
+                                                      Size="Size.Small"
+                                                      OnClick="() => DeleteExpense(context)" />
+                                    }
+                                </MudStack>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public long? ServiceOrderId { get; set; }
+    
+    private ServiceOrder? selectedServiceOrder;
+    private long? selectedServiceOrderId;
+    private IEnumerable<ServiceOrder>? serviceOrders;
+    private IEnumerable<ServiceExpense>? expenses;
+    private bool isLoading = false;
+    
+    private decimal totalExpenses => expenses?.Sum(e => e.Amount) ?? 0;
+    private decimal approvedExpenses => expenses?.Where(e => e.ApprovalStatus == ServiceExpenseStatus.Approved).Sum(e => e.Amount) ?? 0;
+    private decimal pendingExpenses => expenses?.Where(e => e.ApprovalStatus == ServiceExpenseStatus.Pending).Sum(e => e.Amount) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ServiceOrderId.HasValue)
+        {
+            selectedServiceOrderId = ServiceOrderId.Value;
+            await LoadServiceOrder();
+        }
+        else
+        {
+            await LoadServiceOrders();
+        }
+    }
+
+    private async Task LoadServiceOrders()
+    {
+        try
+        {
+            var allOrders = await AppService.GetServiceOrdersAsync();
+            serviceOrders = allOrders ?? Enumerable.Empty<ServiceOrder>();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading service orders: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadServiceOrder()
+    {
+        if (!selectedServiceOrderId.HasValue) return;
+        
+        try
+        {
+            isLoading = true;
+            var orderResult = await AppService.GetServiceOrderByIdAsync(selectedServiceOrderId.Value);
+            selectedServiceOrder = orderResult;
+            
+            if (selectedServiceOrder != null)
+            {
+                await LoadExpenses();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading service order: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadExpenses()
+    {
+        if (!selectedServiceOrderId.HasValue) return;
+        
+        try
+        {
+            var result = await AppService.ListServiceExpenseODataAsync(
+                filter: $"ServiceOrderId eq {selectedServiceOrderId.Value}",
+                orderby: "ExpenseDate desc"
+            );
+            expenses = result?.Value;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading expenses: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OnServiceOrderChanged(long? orderId)
+    {
+        selectedServiceOrderId = orderId;
+        if (orderId.HasValue)
+        {
+            await LoadServiceOrder();
+        }
+        else
+        {
+            selectedServiceOrder = null;
+            expenses = null;
+        }
+    }
+
+    private async Task AddExpense()
+    {
+        if (selectedServiceOrder == null) return;
+        
+        var parameters = new DialogParameters<ServiceExpenseDialog>
+        {
+            { x => x.ServiceOrderId, selectedServiceOrder.Id ?? 0 },
+            { x => x.IsEditMode, false }
+        };
+        
+        var options = new DialogOptions
+        {
+            FullWidth = true,
+            MaxWidth = MaxWidth.Medium,
+            CloseButton = true
+        };
+        
+        var dialog = await DialogService.ShowAsync<ServiceExpenseDialog>("Add Expense", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result is { Canceled: false })
+        {
+            await LoadExpenses();
+            Snackbar.Add("Expense added successfully", Severity.Success);
+        }
+    }
+
+    private async Task EditExpense(ServiceExpense expense)
+    {
+        var parameters = new DialogParameters<ServiceExpenseDialog>
+        {
+            { x => x.ServiceOrderId, expense.ServiceOrderId ?? 0 },
+            { x => x.Expense, expense },
+            { x => x.IsEditMode, true }
+        };
+        
+        var options = new DialogOptions
+        {
+            FullWidth = true,
+            MaxWidth = MaxWidth.Medium,
+            CloseButton = true
+        };
+        
+        var dialog = await DialogService.ShowAsync<ServiceExpenseDialog>("Edit Expense", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result is { Canceled: false })
+        {
+            await LoadExpenses();
+            Snackbar.Add("Expense updated successfully", Severity.Success);
+        }
+    }
+
+    private async Task DeleteExpense(ServiceExpense expense)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Delete Expense",
+            $"Are you sure you want to delete this {expense.ExpenseType.ToString().ToLower()} expense for {expense.Amount:C}?",
+            yesText: "Delete",
+            cancelText: "Cancel"
+        );
+        
+        if (confirmed == true && expense.Id.HasValue)
+        {
+            try
+            {
+                await AppService.DeleteServiceExpenseAsync(expense.Id.Value);
+                await LoadExpenses();
+                Snackbar.Add("Expense deleted successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting expense: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void ExportExpenses()
+    {
+        if (selectedServiceOrder == null || expenses?.Any() != true) return;
+        
+        try
+        {
+            // TODO: Implement expense report export
+            Snackbar.Add("Export functionality coming soon", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error exporting expenses: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void ViewReceipt(string receiptUrl)
+    {
+        // Open receipt in new tab/window
+        // TODO: Implement receipt viewing
+        Snackbar.Add("Receipt viewing coming soon", Severity.Info);
+    }
+
+    private Color GetExpenseTypeColor(ServiceExpenseType type) => type switch
+    {
+        ServiceExpenseType.Meals => Color.Success,
+        ServiceExpenseType.Hotel => Color.Primary,
+        ServiceExpenseType.CarRental => Color.Warning,
+        ServiceExpenseType.Airfare => Color.Info,
+        ServiceExpenseType.LocalTransport => Color.Secondary,
+        ServiceExpenseType.Materials => Color.Tertiary,
+        ServiceExpenseType.Parking => Color.Dark,
+        ServiceExpenseType.Other => Color.Default,
+        _ => Color.Default
+    };
+
+    private Color GetStatusColor(ServiceExpenseStatus status) => status switch
+    {
+        ServiceExpenseStatus.Pending => Color.Warning,
+        ServiceExpenseStatus.Approved => Color.Success,
+        ServiceExpenseStatus.Rejected => Color.Error,
+        _ => Color.Default
+    };
+}

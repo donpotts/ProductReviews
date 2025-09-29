@@ -15,7 +15,7 @@ namespace AppProduct.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
 
             modelBuilder.Entity("AppProduct.Models.ApplicationUser", b =>
                 {
@@ -529,6 +529,630 @@ namespace AppProduct.Migrations
                     b.ToTable("ProductReview");
                 });
 
+            modelBuilder.Entity("AppProduct.Shared.Models.Service", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Complexity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("DailyRate")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Deliverables")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DetailedDescription")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EstimatedDurationHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("HourlyRate")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IncludesTravel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PricingType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("ProjectRate")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Requirements")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("RequiresOnsite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SKU")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ServiceCategoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ServiceCompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Service");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCart", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceCart");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCartItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("EstimatedHours")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PreferredStartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PricingType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RequiresOnsite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ServiceCartId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SpecialRequirements")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceCartId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceCartItem");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCategory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ColorCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IconClass")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceCategory");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCompany", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("AverageRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Certifications")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactEmail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactPhone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsCertified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Specialties")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TotalReviews")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Website")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("YearsOfExperience")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceCompany");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceExpense", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ApprovalStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ApprovedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExpenseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ExpenseType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsReimbursable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Location")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReceiptUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ServiceOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Vendor")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceOrderId");
+
+                    b.ToTable("ServiceExpense");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceFeature", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IconClass")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceFeature");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceOrder", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ActualEndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ActualStartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BillingAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CompletionNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactEmail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactPerson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContactPhone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomerAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomerSignature")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("ExpenseAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OnsiteAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("OrderDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OrderNumber")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PaymentIntentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RequiresOnsite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ScheduledEndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ScheduledStartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SignatureDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("Subtotal")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("TaxAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("TotalAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceOrder");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceOrderItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Deliverables")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("HoursActual")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("HoursEstimated")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PricingType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ProgressPercentage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ServiceOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("TotalPrice")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("ServiceOrderId");
+
+                    b.ToTable("ServiceOrderItem");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceReview", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("CommunicationRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomerEmail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomerName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("HelpfulVotes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsVerifiedCustomer")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProjectType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("QualityRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("Rating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Response")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ResponseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReviewCategory")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ReviewDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewText")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("TimelinessRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TotalVotes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("ValueRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("WouldRecommend")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceReview");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceTag", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ColorCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceTag");
+                });
+
             modelBuilder.Entity("AppProduct.Shared.Models.ShippingRate", b =>
                 {
                     b.Property<long>("Id")
@@ -859,6 +1483,66 @@ namespace AppProduct.Migrations
                     b.ToTable("ProductTag");
                 });
 
+            modelBuilder.Entity("ServiceServiceCategory", b =>
+                {
+                    b.Property<long>("ServiceCategoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ServiceCategoryId", "ServiceId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceServiceCategory");
+                });
+
+            modelBuilder.Entity("ServiceServiceCompany", b =>
+                {
+                    b.Property<long>("ServiceCompanyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ServiceCompanyId", "ServiceId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceServiceCompany");
+                });
+
+            modelBuilder.Entity("ServiceServiceFeature", b =>
+                {
+                    b.Property<long>("ServiceFeatureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ServiceFeatureId", "ServiceId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("ServiceServiceFeature");
+                });
+
+            modelBuilder.Entity("ServiceServiceTag", b =>
+                {
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceTagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ServiceId", "ServiceTagId");
+
+                    b.HasIndex("ServiceTagId");
+
+                    b.ToTable("ServiceServiceTag");
+                });
+
             modelBuilder.Entity("AppProduct.Shared.Models.Brand", b =>
                 {
                     b.HasOne("AppProduct.Shared.Models.Product", null)
@@ -886,6 +1570,54 @@ namespace AppProduct.Migrations
                     b.HasOne("AppProduct.Shared.Models.Product", null)
                         .WithMany("ProductReview")
                         .HasForeignKey("ProductId");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCartItem", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.ServiceCart", "ServiceCart")
+                        .WithMany("Items")
+                        .HasForeignKey("ServiceCartId");
+
+                    b.HasOne("AppProduct.Shared.Models.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId");
+
+                    b.Navigation("Service");
+
+                    b.Navigation("ServiceCart");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceExpense", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.ServiceOrder", "ServiceOrder")
+                        .WithMany("Expenses")
+                        .HasForeignKey("ServiceOrderId");
+
+                    b.Navigation("ServiceOrder");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceOrderItem", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId");
+
+                    b.HasOne("AppProduct.Shared.Models.ServiceOrder", "ServiceOrder")
+                        .WithMany("Items")
+                        .HasForeignKey("ServiceOrderId");
+
+                    b.Navigation("Service");
+
+                    b.Navigation("ServiceOrder");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceReview", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.Service", "Service")
+                        .WithMany("ServiceReview")
+                        .HasForeignKey("ServiceId");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("AppProduct.Shared.Models.ShoppingCartItem", b =>
@@ -999,6 +1731,66 @@ namespace AppProduct.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ServiceServiceCategory", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.ServiceCategory", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceCategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AppProduct.Shared.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ServiceServiceCompany", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.ServiceCompany", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceCompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AppProduct.Shared.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ServiceServiceFeature", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.ServiceFeature", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceFeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AppProduct.Shared.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ServiceServiceTag", b =>
+                {
+                    b.HasOne("AppProduct.Shared.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AppProduct.Shared.Models.ServiceTag", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceTagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AppProduct.Shared.Models.Order", b =>
                 {
                     b.Navigation("Items");
@@ -1009,6 +1801,23 @@ namespace AppProduct.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("ProductReview");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.Service", b =>
+                {
+                    b.Navigation("ServiceReview");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceCart", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("AppProduct.Shared.Models.ServiceOrder", b =>
+                {
+                    b.Navigation("Expenses");
+
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("AppProduct.Shared.Models.ShoppingCart", b =>

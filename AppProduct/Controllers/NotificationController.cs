@@ -7,21 +7,20 @@ using AppProduct.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OData.Query;
-using Microsoft.AspNetCore.OData.Routing.Controllers;
 using Microsoft.EntityFrameworkCore;
 
 namespace AppProduct.Controllers;
 
+[Route("api/Notification")]
 [ApiController]
-[Route("api/[controller]")]
 [Authorize]
-public class NotificationController : ODataController
+public class NotificationApiController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
-    private readonly ILogger<NotificationController> _logger;
+    private readonly ILogger<NotificationApiController> _logger;
 
-    public NotificationController(ApplicationDbContext context, INotificationService notificationService, ILogger<NotificationController> logger)
+    public NotificationApiController(ApplicationDbContext context, INotificationService notificationService, ILogger<NotificationApiController> logger)
     {
         _context = context;
         _notificationService = notificationService;
@@ -32,10 +31,27 @@ public class NotificationController : ODataController
     [EnableQuery]
     public IQueryable<Notification> Get()
     {
-        var userId = GetCurrentUserId();
-        return _context.Notification
-            .Where(n => n.UserId == userId || n.UserId == null)
-            .OrderByDescending(n => n.CreatedDate);
+        try
+        {
+            _logger.LogInformation("=== NOTIFICATION GET REQUEST START ===");
+            var userId = GetCurrentUserId();
+            _logger.LogInformation($"User ID: {userId}");
+            
+            var query = _context.Notification
+                .Where(n => n.UserId == userId || n.UserId == null)
+                .OrderByDescending(n => n.CreatedDate);
+                
+            var count = query.Count();
+            _logger.LogInformation($"Found {count} notifications for user {userId}");
+            _logger.LogInformation("=== NOTIFICATION GET REQUEST SUCCESS ===");
+            
+            return query;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "=== NOTIFICATION GET REQUEST ERROR ===");
+            throw;
+        }
     }
 
     [HttpGet("{id}")]

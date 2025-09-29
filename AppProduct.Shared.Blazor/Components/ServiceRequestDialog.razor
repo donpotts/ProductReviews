@@ -1,0 +1,254 @@
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@inject AppService AppService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">Request Service: @Service?.Name</MudText>
+        
+        @if (Service != null)
+        {
+            <MudGrid Spacing="3">
+                <!-- Service Information -->
+                <MudItem xs="12">
+                    <MudPaper Class="pa-3" Elevation="1">
+                        <MudText Typo="Typo.subtitle1" Class="mb-2">Service Details</MudText>
+                        <MudText><strong>Service:</strong> @Service.GetDisplayName()</MudText>
+                        <MudText><strong>Description:</strong> @(Service.Description ?? "No description available")</MudText>
+                        @if (Service.HourlyRate.HasValue)
+                        {
+                            <MudText><strong>Hourly Rate:</strong> @Service.HourlyRate.Value.ToString("C")</MudText>
+                        }
+                        @if (Service.DailyRate.HasValue)
+                        {
+                            <MudText><strong>Daily Rate:</strong> @Service.DailyRate.Value.ToString("C")</MudText>
+                        }
+                        @if (Service.ProjectRate.HasValue)
+                        {
+                            <MudText><strong>Project Rate:</strong> @Service.ProjectRate.Value.ToString("C")</MudText>
+                        }
+                        @if (Service.EstimatedDurationHours.HasValue)
+                        {
+                            <MudText><strong>Estimated Duration:</strong> @Service.EstimatedDurationHours.Value hours</MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Customer Information -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3">Contact Information</MudText>
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="customerName"
+                                  Label="Full Name"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  For="@(() => customerName)" />
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="customerEmail"
+                                  Label="Email Address"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  InputType="InputType.Email"
+                                  For="@(() => customerEmail)" />
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="customerPhone"
+                                  Label="Phone Number"
+                                  Variant="Variant.Outlined"
+                                  For="@(() => customerPhone)" />
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="companyName"
+                                  Label="Company (Optional)"
+                                  Variant="Variant.Outlined"
+                                  For="@(() => companyName)" />
+                </MudItem>
+
+                <!-- Service Request Details -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle1" Class="mb-3">Service Request Details</MudText>
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="preferredStartDate"
+                                   Label="Preferred Start Date"
+                                   Variant="Variant.Outlined"
+                                   For="@(() => preferredStartDate)" />
+                </MudItem>
+                
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" @bind-Value="estimatedHours"
+                                     Label="Estimated Hours Needed"
+                                     Variant="Variant.Outlined"
+                                     Min="0.5m"
+                                     Step="0.5m"
+                                     For="@(() => estimatedHours)" />
+                </MudItem>
+                
+                @if (Service.RequiresOnsite)
+                {
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="onsiteAddress"
+                                      Label="On-site Address"
+                                      Variant="Variant.Outlined"
+                                      Lines="3"
+                                      Required="true"
+                                      For="@(() => onsiteAddress)" />
+                    </MudItem>
+                }
+                
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="requestNotes"
+                                  Label="Additional Notes or Requirements"
+                                  Variant="Variant.Outlined"
+                                  Lines="4"
+                                  For="@(() => requestNotes)" />
+                </MudItem>
+                
+                <!-- Estimated Cost -->
+                <MudItem xs="12">
+                    <MudPaper Class="pa-3" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.subtitle1" Class="mb-2">Estimated Cost</MudText>
+                        @if (estimatedCost > 0)
+                        {
+                            <MudText><strong>Estimated Total:</strong> @estimatedCost.ToString("C")</MudText>
+                            <MudText Typo="Typo.caption">
+                                Based on @estimatedHours hours × @GetHourlyRate().ToString("C")/hour
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2">Cost will be calculated based on your requirements</MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="SubmitRequest"
+                   Disabled="@(!IsFormValid() || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Submitting...</MudText>
+            }
+            else
+            {
+                <MudText>Submit Request</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Service? Service { get; set; }
+    
+    private string customerName = string.Empty;
+    private string customerEmail = string.Empty;
+    private string customerPhone = string.Empty;
+    private string companyName = string.Empty;
+    private DateTime? preferredStartDate;
+    private decimal estimatedHours = 1;
+    private string onsiteAddress = string.Empty;
+    private string requestNotes = string.Empty;
+    private bool isSubmitting = false;
+    
+    private decimal estimatedCost => estimatedHours * GetHourlyRate();
+    
+    protected override void OnInitialized()
+    {
+        if (Service?.EstimatedDurationHours.HasValue == true)
+        {
+            estimatedHours = Service.EstimatedDurationHours.Value;
+        }
+    }
+    
+    private decimal GetHourlyRate()
+    {
+        if (Service == null) return 0;
+        
+        return Service.HourlyRate ?? 
+               (Service.DailyRate / 8) ?? 
+               (Service.ProjectRate / (Service.EstimatedDurationHours ?? 8)) ?? 
+               0;
+    }
+    
+    private bool IsFormValid()
+    {
+        return !string.IsNullOrWhiteSpace(customerName) &&
+               !string.IsNullOrWhiteSpace(customerEmail) &&
+               estimatedHours > 0 &&
+               (!Service?.RequiresOnsite == true || !string.IsNullOrWhiteSpace(onsiteAddress));
+    }
+    
+    private async Task SubmitRequest()
+    {
+        if (!IsFormValid() || Service?.Id == null)
+            return;
+            
+        isSubmitting = true;
+        StateHasChanged();
+        
+        try
+        {
+            var serviceOrder = new ServiceOrder
+            {
+                OrderNumber = $"SRQ-{DateTime.UtcNow:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}",
+                OrderDate = DateTime.UtcNow,
+                Status = ServiceOrderStatus.Pending,
+                PaymentMethod = PaymentMethod.CreditCard,
+                ContactPerson = customerName,
+                ContactEmail = customerEmail,
+                ContactPhone = customerPhone,
+                ScheduledStartDate = preferredStartDate,
+                RequiresOnsite = Service.RequiresOnsite,
+                OnsiteAddress = Service.RequiresOnsite ? onsiteAddress : null,
+                Notes = requestNotes,
+                Items = new List<ServiceOrderItem>
+                {
+                    new ServiceOrderItem
+                    {
+                        ServiceId = Service.Id,
+                        HoursEstimated = estimatedHours,
+                        UnitPrice = GetHourlyRate(),
+                        TotalPrice = estimatedCost
+                    }
+                }
+            };
+            
+            // Calculate totals
+            serviceOrder.Subtotal = serviceOrder.Items.Sum(i => i.TotalPrice ?? 0);
+            serviceOrder.TotalAmount = serviceOrder.Subtotal;
+            
+            // Create the service order
+            var createdOrder = await AppService.CreateServiceOrderAsync(serviceOrder);
+            
+            Snackbar.Add($"Service request #{createdOrder.OrderNumber} submitted successfully! You will receive a confirmation email shortly.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(createdOrder));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error submitting service request: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void Cancel() => MudDialog.Cancel();
+}

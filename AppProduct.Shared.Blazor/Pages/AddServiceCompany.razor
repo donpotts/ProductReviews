@@ -1,0 +1,190 @@
+@page "/service-companies/add"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.ComponentModel.DataAnnotations
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Add Service Company</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" 
+                          OnClick="GoBack" 
+                          Color="Color.Default" />
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                Add New Service Company
+            </MudText>
+        </MudStack>
+
+        <MudPaper Class="pa-6" Elevation="2">
+            <EditForm Model="@company" OnValidSubmit="@SaveCompany">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <!-- Basic Information -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">Company Information</MudText>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="company.Name" 
+                                    Label="Company Name" 
+                                    Required="true"
+                                    Variant="Variant.Outlined" />
+                        <ValidationMessage For="@(() => company.Name)" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="company.Website" 
+                                    Label="Website" 
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="company.Description" 
+                                    Label="Description" 
+                                    Lines="3"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="company.Address" 
+                                    Label="Address" 
+                                    Lines="2"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Contact Information -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Contact Information</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="company.ContactEmail" 
+                                    Label="Contact Email" 
+                                    InputType="InputType.Email"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="company.ContactPhone" 
+                                    Label="Contact Phone" 
+                                    InputType="InputType.Telephone"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Company Details -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Company Details</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudNumericField @bind-Value="company.YearsOfExperience" 
+                                       Label="Years of Experience" 
+                                       Variant="Variant.Outlined"
+                                       Min="0" 
+                                       T="int?" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="company.LogoUrl" 
+                                    Label="Logo URL" 
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="company.Specialties" 
+                                    Label="Specialties" 
+                                    Lines="2"
+                                    HelperText="Comma-separated list of specialties"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="company.Certifications" 
+                                    Label="Certifications" 
+                                    Lines="2"
+                                    HelperText="List of certifications and credentials"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Status -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Status</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSwitch @bind-Value="company.IsActive" 
+                                 Label="Active" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSwitch @bind-Value="company.IsCertified" 
+                                 Label="Certified Provider" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <!-- Actions -->
+                    <MudItem xs="12" Class="d-flex justify-end gap-2 mt-4">
+                        <MudButton Variant="Variant.Text" OnClick="GoBack">
+                            Cancel
+                        </MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" 
+                                 Variant="Variant.Filled" 
+                                 Color="Color.Primary"
+                                 Disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <span class="ms-2">Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Company</span>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private ServiceCompany company = new ServiceCompany
+    {
+        IsActive = true,
+        IsCertified = false,
+        CreatedDate = DateTime.UtcNow
+    };
+
+    private bool isSubmitting = false;
+
+    private async Task SaveCompany()
+    {
+        isSubmitting = true;
+        try
+        {
+            await AppService.CreateServiceCompanyAsync(company);
+            Snackbar.Add("Service company created successfully", Severity.Success);
+            Navigation.NavigateTo("/service-companies");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating company: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/service-companies");
+    }
+}

@@ -1,8 +1,10 @@
 @page "/cart"
 @using AppProduct.Shared.Models
+@using Microsoft.AspNetCore.Components.Authorization
 @inject AppService AppService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Shopping Cart</PageTitle>
 
@@ -180,19 +182,23 @@
         {
             isLoading = true;
             var cartTask = AppService.GetShoppingCartAsync();
-            var shippingTask = AppService.GetDefaultShippingRateAsync();
 
             cart = await cartTask;
 
-            try
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
             {
-                defaultShippingRate = await shippingTask;
-            }
-            catch (Exception shippingEx)
-            {
-                defaultShippingRate = null;
-                Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
-                Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+                try
+                {
+                    var shippingTask = AppService.GetDefaultShippingRateAsync();
+                    defaultShippingRate = await shippingTask;
+                }
+                catch (Exception shippingEx)
+                {
+                    defaultShippingRate = null;
+                    Console.WriteLine($"Failed to load shipping rate: {shippingEx.Message}");
+                    Snackbar.Add("Unable to load shipping rate. Shipping will be calculated at checkout.", Severity.Warning);
+                }
             }
         }
         catch (Exception ex)

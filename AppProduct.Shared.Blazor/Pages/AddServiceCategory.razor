@@ -1,0 +1,139 @@
+@page "/service-categories/add"
+@using AppProduct.Shared.Models
+@using AppProduct.Shared.Blazor.Services
+@using System.ComponentModel.DataAnnotations
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Add Service Category</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" 
+                          OnClick="GoBack" 
+                          Color="Color.Default" />
+            <MudText Typo="Typo.h4">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                Add New Service Category
+            </MudText>
+        </MudStack>
+
+        <MudPaper Class="pa-6" Elevation="2">
+            <EditForm Model="@category" OnValidSubmit="@SaveCategory">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="3">
+                    <!-- Basic Information -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">Category Information</MudText>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="category.Name" 
+                                    Label="Category Name" 
+                                    Required="true"
+                                    Variant="Variant.Outlined" />
+                        <ValidationMessage For="@(() => category.Name)" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudNumericField @bind-Value="category.SortOrder" 
+                                       Label="Sort Order" 
+                                       Variant="Variant.Outlined"
+                                       Min="0" 
+                                       T="int?" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="category.Description" 
+                                    Label="Description" 
+                                    Lines="3"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="category.IconClass" 
+                                    Label="Icon Class" 
+                                    HelperText="CSS icon class (e.g., 'fas fa-build', 'fas fa-computer')"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="category.ColorCode" 
+                                    Label="Color Code" 
+                                    HelperText="Hex color code (e.g., '#2196F3')"
+                                    Variant="Variant.Outlined" />
+                    </MudItem>
+
+                    <!-- Status -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3 mt-4">Status</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="category.IsActive" 
+                                 Label="Active" 
+                                 Color="Color.Primary" />
+                    </MudItem>
+
+                    <!-- Actions -->
+                    <MudItem xs="12" Class="d-flex justify-end gap-2 mt-4">
+                        <MudButton Variant="Variant.Text" OnClick="GoBack">
+                            Cancel
+                        </MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" 
+                                 Variant="Variant.Filled" 
+                                 Color="Color.Primary"
+                                 Disabled="@isSubmitting">
+                            @if (isSubmitting)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                <span class="ms-2">Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Category</span>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private ServiceCategory category = new ServiceCategory
+    {
+        IsActive = true,
+        SortOrder = 0,
+        CreatedDate = DateTime.UtcNow
+    };
+
+    private bool isSubmitting = false;
+
+    private async Task SaveCategory()
+    {
+        isSubmitting = true;
+        try
+        {
+            await AppService.CreateServiceCategoryAsync(category);
+            Snackbar.Add("Service category created successfully", Severity.Success);
+            Navigation.NavigateTo("/service-categories");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating category: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/service-categories");
+    }
+}

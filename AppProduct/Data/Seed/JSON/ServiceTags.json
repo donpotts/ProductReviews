@@ -1,0 +1,37 @@
+[
+  {
+    "Id": 1,
+    "Name": "Urgent",
+    "Description": "High priority emergency services",
+    "ColorCode": "#F44336",
+    "IsActive": true
+  },
+  {
+    "Id": 2,
+    "Name": "Remote",
+    "Description": "Services performed remotely",
+    "ColorCode": "#4CAF50",
+    "IsActive": true
+  },
+  {
+    "Id": 3,
+    "Name": "Onsite",
+    "Description": "Services requiring physical presence",
+    "ColorCode": "#FF9800",
+    "IsActive": true
+  },
+  {
+    "Id": 4,
+    "Name": "Certified",
+    "Description": "Performed by certified professionals",
+    "ColorCode": "#2196F3",
+    "IsActive": true
+  },
+  {
+    "Id": 5,
+    "Name": "Enterprise",
+    "Description": "Enterprise-level services",
+    "ColorCode": "#9C27B0",
+    "IsActive": true
+  }
+]

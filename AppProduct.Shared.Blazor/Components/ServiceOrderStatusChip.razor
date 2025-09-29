@@ -1,0 +1,41 @@
+@using AppProduct.Shared.Models
+
+<MudChip T="string" Color="@GetStatusColor(Status)" Size="Size.Small" Variant="Variant.Filled">
+    @GetStatusText(Status)
+</MudChip>
+
+@code {
+    [Parameter] public ServiceOrderStatus Status { get; set; }
+
+    private Color GetStatusColor(ServiceOrderStatus status)
+    {
+        return status switch
+        {
+            ServiceOrderStatus.Pending => Color.Warning,
+            ServiceOrderStatus.Confirmed => Color.Info,
+            ServiceOrderStatus.Scheduled => Color.Primary,
+            ServiceOrderStatus.InProgress => Color.Secondary,
+            ServiceOrderStatus.OnHold => Color.Warning,
+            ServiceOrderStatus.Completed => Color.Success,
+            ServiceOrderStatus.Cancelled => Color.Error,
+            ServiceOrderStatus.Invoiced => Color.Tertiary,
+            _ => Color.Default
+        };
+    }
+
+    private string GetStatusText(ServiceOrderStatus status)
+    {
+        return status switch
+        {
+            ServiceOrderStatus.Pending => "Pending",
+            ServiceOrderStatus.Confirmed => "Confirmed",
+            ServiceOrderStatus.Scheduled => "Scheduled",
+            ServiceOrderStatus.InProgress => "In Progress",
+            ServiceOrderStatus.OnHold => "On Hold",
+            ServiceOrderStatus.Completed => "Completed",
+            ServiceOrderStatus.Cancelled => "Cancelled",
+            ServiceOrderStatus.Invoiced => "Invoiced",
+            _ => "Unknown"
+        };
+    }
+}

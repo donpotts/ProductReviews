@@ -48,6 +48,17 @@ modelBuilder.EntitySet<Category>("Category");
 modelBuilder.EntitySet<Product>("Product");
 modelBuilder.EntitySet<ApplicationUserDto>("User");
 modelBuilder.EntitySet<Order>("Order");
+modelBuilder.EntitySet<Notification>("Notification");
+
+// Service entities
+modelBuilder.EntitySet<Service>("Service");
+modelBuilder.EntitySet<ServiceCategory>("ServiceCategory");
+modelBuilder.EntitySet<ServiceCompany>("ServiceCompany");
+modelBuilder.EntitySet<ServiceFeature>("ServiceFeature");
+modelBuilder.EntitySet<ServiceTag>("ServiceTag");
+modelBuilder.EntitySet<ServiceReview>("ServiceReview");
+modelBuilder.EntitySet<ServiceOrder>("ServiceOrder");
+modelBuilder.EntitySet<ServiceExpense>("ServiceExpense");
 
 builder.Services.AddControllers()
     .AddOData(options => options.EnableQueryFeatures().AddRouteComponents("odata", modelBuilder.GetEdmModel()))
@@ -195,27 +206,6 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    
-    // Auto-seed tax rates in development
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await TaxRateSeedData.EnsureSeedDataAsync(dbContext);
-
-        if (!await dbContext.ShippingRate.AnyAsync())
-        {
-            dbContext.ShippingRate.Add(new ShippingRate
-            {
-                Name = "Standard Shipping",
-                Amount = 9.99m,
-                IsDefault = true,
-                IsActive = true,
-                CreatedDate = DateTime.UtcNow,
-                Notes = "Initial default shipping rate"
-            });
-            await dbContext.SaveChangesAsync();
-        }
-    }
 }
 
 app.UseHttpsRedirection();
@@ -302,74 +292,160 @@ using (var scope = app.Services.CreateScope())
 
         await userManager.CreateAsync(normalUser, "testUser123!");
 
-        if (System.IO.File.Exists("Product.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("Product.Data.json");
-            var data = JsonSerializer.Deserialize<Product[]>(json);
 
-            if (data != null)
+        // Auto-seed tax rates in development
+        if (!ctx.TaxRate.Any()) 
+        { 
+            await TaxRateSeedData.EnsureSeedDataAsync(ctx);
+
+            if (!await ctx.ShippingRate.AnyAsync())
             {
-                ctx.Product.AddRange(data);
-                ctx.SaveChanges();
+                ctx.ShippingRate.Add(new ShippingRate
+                {
+                    Name = "Standard Shipping",
+                    Amount = 9.99m,
+                    IsDefault = true,
+                    IsActive = true,
+                    CreatedDate = DateTime.UtcNow,
+                    Notes = "Initial default shipping rate"
+                });
+                await ctx.SaveChangesAsync();
             }
         }
 
-        if (System.IO.File.Exists("ProductReview.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("ProductReview.Data.json");
-            var data = JsonSerializer.Deserialize<ProductReview[]>(json);
+        // Common timestamp for all seeding operations
+        var currentTimestamp = DateTime.UtcNow;
 
-            if (data != null)
+        // Seed product-related data from JSON files (with legacy fallback)
+        if (!ctx.Product.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Product, 
+                JsonSeedDataHelper.GetJsonSeedPath("Products.json"), currentTimestamp);
+            
+            // Fallback to legacy file if new JSON didn't work
+            if (!ctx.Product.Any())
             {
-                ctx.ProductReview.AddRange(data);
-                ctx.SaveChanges();
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.Product, "Product.Data.json");
             }
         }
-        if (System.IO.File.Exists("Tag.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("Tag.Data.json");
-            var data = JsonSerializer.Deserialize<Tag[]>(json);
 
-            if (data != null)
+        if (!ctx.ProductReview.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ProductReview, 
+                JsonSeedDataHelper.GetJsonSeedPath("ProductReviews.json"), currentTimestamp);
+            
+            if (!ctx.ProductReview.Any())
             {
-                ctx.Tag.AddRange(data);
-                ctx.SaveChanges();
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.ProductReview, "ProductReview.Data.json");
             }
         }
-        if (System.IO.File.Exists("Feature.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("Feature.Data.json");
-            var data = JsonSerializer.Deserialize<Feature[]>(json);
 
-            if (data != null)
+        if (!ctx.Tag.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Tag, 
+                JsonSeedDataHelper.GetJsonSeedPath("Tags.json"), currentTimestamp);
+            
+            if (!ctx.Tag.Any())
             {
-                ctx.Feature.AddRange(data);
-                ctx.SaveChanges();
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.Tag, "Tag.Data.json");
             }
         }
-        if (System.IO.File.Exists("Brand.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("Brand.Data.json");
-            var data = JsonSerializer.Deserialize<Brand[]>(json);
 
-            if (data != null)
+        if (!ctx.Feature.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Feature, 
+                JsonSeedDataHelper.GetJsonSeedPath("Features.json"), currentTimestamp);
+            
+            if (!ctx.Feature.Any())
             {
-                ctx.Brand.AddRange(data);
-                ctx.SaveChanges();
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.Feature, "Feature.Data.json");
             }
         }
-        if (System.IO.File.Exists("Category.Data.json"))
-        {
-            var json = System.IO.File.ReadAllText("Category.Data.json");
-            var data = JsonSerializer.Deserialize<Category[]>(json);
 
-            if (data != null)
+        if (!ctx.Brand.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Brand, 
+                JsonSeedDataHelper.GetJsonSeedPath("Brands.json"), currentTimestamp);
+            
+            if (!ctx.Brand.Any())
             {
-                ctx.Category.AddRange(data);
-                ctx.SaveChanges();
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.Brand, "Brand.Data.json");
             }
         }
-        await TaxRateSeedData.EnsureSeedDataAsync(ctx);
+
+        if (!ctx.Category.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Category, 
+                JsonSeedDataHelper.GetJsonSeedPath("Categories.json"), currentTimestamp);
+            
+            if (!ctx.Category.Any())
+            {
+                await JsonSeedDataHelper.SeedLegacyFromJsonAsync(ctx, ctx.Category, "Category.Data.json");
+            }
+        }
+        
+        // Seed TaxRates from JSON file (fallback to hardcoded method if JSON not found)
+        if (!ctx.TaxRate.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.TaxRate, 
+                JsonSeedDataHelper.GetJsonSeedPath("TaxRates.json"), currentTimestamp);
+            
+            // If JSON seeding didn't add any data, use the traditional method
+            if (!ctx.TaxRate.Any())
+            {
+                await TaxRateSeedData.EnsureSeedDataAsync(ctx);
+            }
+        }
+
+        // Seed Service data from JSON files
+        
+        if (!ctx.ServiceCategory.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceCategory, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceCategories.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceCompany.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceCompany, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceCompanies.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceFeature.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceFeature, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceFeatures.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceTag.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceTag, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceTags.json"), currentTimestamp);
+        }
+
+        if (!ctx.Service.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Service, 
+                JsonSeedDataHelper.GetJsonSeedPath("Services.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceReview.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceReview, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceReviews.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceOrder.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceOrder, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceOrders.json"), currentTimestamp);
+        }
+
+        if (!ctx.ServiceExpense.Any())
+        {
+            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceExpense, 
+                JsonSeedDataHelper.GetJsonSeedPath("ServiceExpenses.json"), currentTimestamp);
+        }
 
     }
 }

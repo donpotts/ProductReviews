@@ -104,6 +104,41 @@ public class ProductChatService(
         return sb.ToString().TrimEnd();
     }
 
+    private static string BuildServiceText(Service s)
+    {
+        var pricing = new List<string>();
+        if (s.HourlyRate.HasValue) pricing.Add($"Hourly: {s.HourlyRate:C}");
+        if (s.DailyRate.HasValue) pricing.Add($"Daily: {s.DailyRate:C}");
+        if (s.ProjectRate.HasValue) pricing.Add($"Project: {s.ProjectRate:C}");
+        
+        var sb = new StringBuilder();
+        sb.AppendLine($"Service Id: {s.Id}");
+        sb.AppendLine($"Name: {s.Name}");
+        sb.AppendLine($"Description: {s.Description}");
+        sb.AppendLine($"Category: {string.Join(", ", s.ServiceCategory?.Select(c => c.Name) ?? new[] { "Not specified" })}");
+        sb.AppendLine($"Company: {string.Join(", ", s.ServiceCompany?.Select(c => c.Name) ?? new[] { "Not specified" })}");
+        sb.AppendLine($"Pricing: {string.Join(", ", pricing)}");
+        sb.AppendLine($"Duration: {s.EstimatedDurationHours} hours");
+        sb.AppendLine($"Complexity: {s.Complexity}");
+        sb.AppendLine($"Pricing Type: {s.PricingType}");
+        sb.AppendLine($"On-site Required: {(s.RequiresOnsite ? "Yes" : "No")}");
+        sb.AppendLine($"Availability: {(s.IsAvailable ? "Available" : "Not Available")}");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static bool IsServiceRelatedQuestion(string question)
+    {
+        var serviceKeywords = new[] 
+        { 
+            "service", "services", "consulting", "support", "installation", "maintenance", 
+            "repair", "setup", "configuration", "training", "implementation", "deployment",
+            "what do you offer", "what services", "professional services", "technical support",
+            "help with", "assistance", "expert", "specialist"
+        };
+        
+        return serviceKeywords.Any(keyword => question.ToLowerInvariant().Contains(keyword));
+    }
+
     private static float[] HashEmbed(string text, int dim = 32)
     {
         var vec = new float[dim];
@@ -353,8 +388,45 @@ public class ProductChatService(
             }
         }
 
-        var contextBlock = products.Any() ? string.Join("\n\n---\n\n", products.Select(p => BuildProductText(p))) : "(no product context available)";
-        var systemPrompt = "You are a strict product knowledge assistant. Answer ONLY using the provided product context. If the question is outside product data, reply: 'I can only answer questions about the products in the catalog.' Provide concise factual answers.";
+        // Get services data for service-related questions
+        var services = new List<Service>();
+        if (IsServiceRelatedQuestion(question))
+        {
+            try
+            {
+                services = await db.Service
+                    .Include(s => s.ServiceCategory)
+                    .Include(s => s.ServiceCompany)
+                    .ToListAsync(ct);
+            }
+            catch
+            {
+                // ignore if services not available
+            }
+        }
+
+        var productContext = products.Any() ? string.Join("\n\n---\n\n", products.Select(p => BuildProductText(p))) : "";
+        var serviceContext = services.Any() ? string.Join("\n\n---\n\n", services.Select(s => BuildServiceText(s))) : "";
+        
+        var contextBlock = "";
+        if (productContext.Any() && serviceContext.Any())
+        {
+            contextBlock = $"PRODUCTS:\n{productContext}\n\n===SERVICES===\n{serviceContext}";
+        }
+        else if (productContext.Any())
+        {
+            contextBlock = productContext;
+        }
+        else if (serviceContext.Any())
+        {
+            contextBlock = serviceContext;
+        }
+        else
+        {
+            contextBlock = "(no product or service context available)";
+        }
+
+        var systemPrompt = "You are a helpful assistant for both products and services. Answer ONLY using the provided context. For questions about products, use the PRODUCTS section. For questions about services, use the SERVICES section. If the question is outside the provided data, reply: 'I can only answer questions about the products and services in our catalog.' Provide concise factual answers.";
         if (lowestRequest && lowestProduct != null)
         {
             systemPrompt += " If the user asks for the lowest priced product, respond ONLY with that single product's name, Id and price (and optionally a brief spec) drawn from context.";

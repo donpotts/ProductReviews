@@ -1,0 +1,245 @@
+@page "/my-orders"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>My Order History</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.ListAlt" Class="mr-2" />
+        My Order History
+    </MudText>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <MudTabPanel Text="Product Orders" Icon="@Icons.Material.Filled.ShoppingCart">
+            @if (isLoadingProducts)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else if (!productOrders.Any())
+            {
+                <MudPaper Class="pa-8" Elevation="1">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6">No product orders found</MudText>
+                        <MudText Typo="Typo.body1" Align="Align.Center">
+                            You haven't placed any product orders yet. Start shopping to see your orders here!
+                        </MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/catalog">
+                            Start Shopping
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <MudStack Spacing="3">
+                    @foreach (var order in productOrders)
+                    {
+                        <MudCard Elevation="2">
+                            <MudCardContent>
+                                <MudGrid>
+                                    <MudItem xs="12" sm="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.subtitle1">Order #@order.OrderNumber</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Default">
+                                                @order.OrderDate?.ToString("MMM dd, yyyy")
+                                            </MudText>
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">Product Order</MudChip>
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <OrderStatusChip Status="order.Status" />
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.body2" Color="Color.Default">Total</MudText>
+                                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">
+                                                @order.TotalAmount?.ToString("C")
+                                            </MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="3">
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.body2" Color="Color.Default">Items</MudText>
+                                            <MudText Typo="Typo.body1">
+                                                @order.Items?.Count() items
+                                            </MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <MudButton Variant="Variant.Outlined" 
+                                                  Color="Color.Primary" 
+                                                  Size="Size.Small"
+                                                  FullWidth="true"
+                                                  OnClick="() => ViewProductOrderDetails(order.Id)">
+                                            View Details
+                                        </MudButton>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    }
+                </MudStack>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Service Orders" Icon="@Icons.Material.Filled.Build">
+            @if (isLoadingServices)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else if (!serviceOrders.Any())
+            {
+                <MudPaper Class="pa-8" Elevation="1">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                        <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6">No service orders found</MudText>
+                        <MudText Typo="Typo.body1" Align="Align.Center">
+                            You haven't requested any services yet. Browse our service catalog to get started!
+                        </MudText>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/services">
+                            Browse Services
+                        </MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+            else
+            {
+                <MudStack Spacing="3">
+                    @foreach (var order in serviceOrders)
+                    {
+                        <MudCard Elevation="2">
+                            <MudCardContent>
+                                <MudGrid>
+                                    <MudItem xs="12" sm="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.subtitle1">Order #@order.OrderNumber</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Default">
+                                                @order.OrderDate?.ToString("MMM dd, yyyy")
+                                            </MudText>
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary">Service Order</MudChip>
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <ServiceOrderStatusChip Status="order.Status" />
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.body2" Color="Color.Default">Total</MudText>
+                                            <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+                                                @order.TotalAmount?.ToString("C")
+                                            </MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="3">
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.body2" Color="Color.Default">Contact</MudText>
+                                            <MudText Typo="Typo.body1">
+                                                @(order.ContactPerson ?? "Not specified")
+                                            </MudText>
+                                            @if (order.RequiresOnsite)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">On-site Service</MudChip>
+                                            }
+                                        </MudStack>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="2">
+                                        <MudButton Variant="Variant.Outlined" 
+                                                  Color="Color.Secondary" 
+                                                  Size="Size.Small"
+                                                  FullWidth="true"
+                                                  OnClick="() => ViewServiceOrderDetails(order.Id)">
+                                            View Details
+                                        </MudButton>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    }
+                </MudStack>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    private Order[] productOrders = Array.Empty<Order>();
+    private ServiceOrder[] serviceOrders = Array.Empty<ServiceOrder>();
+    private bool isLoadingProducts = true;
+    private bool isLoadingServices = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadProductOrders(), LoadServiceOrders());
+    }
+
+    private async Task LoadProductOrders()
+    {
+        try
+        {
+            isLoadingProducts = true;
+            var orders = await AppService.ListOrderAsync();
+            productOrders = orders?.OrderByDescending(o => o.OrderDate).ToArray() ?? Array.Empty<Order>();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading product orders: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingProducts = false;
+        }
+    }
+
+    private async Task LoadServiceOrders()
+    {
+        try
+        {
+            isLoadingServices = true;
+            var orders = await AppService.GetServiceOrdersAsync();
+            serviceOrders = orders.OrderByDescending(o => o.OrderDate).ToArray();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading service orders: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoadingServices = false;
+        }
+    }
+
+    private void ViewProductOrderDetails(long? orderId)
+    {
+        if (orderId.HasValue)
+        {
+            Navigation.NavigateTo($"/orders/{orderId}");
+        }
+    }
+
+    private void ViewServiceOrderDetails(long? orderId)
+    {
+        if (orderId.HasValue)
+        {
+            Navigation.NavigateTo($"/service-orders/{orderId}");
+        }
+    }
+}
+
+<style>
+.mud-tabs .mud-tab-panel {
+    padding-top: 16px;
+}
+</style>

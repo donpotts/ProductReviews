@@ -43,32 +43,61 @@
                 <MudIcon Icon="@Icons.Material.Filled.Home" Class="mr-1" /> Home
             </MudLink>
             <AuthorizeView>
-                <MudLink Href="/product" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-1" /> Products
-                </MudLink>
-                <MudLink Href="/brand" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.Business" Class="mr-1" /> Brands
-                </MudLink>
-                <MudLink Href="/category" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-1" /> Categories
-                </MudLink>
-                <MudLink Href="/feature" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.Extension" Class="mr-1" /> Features
-                </MudLink>
-                <MudLink Href="/productreview" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.RateReview" Class="mr-1" /> Reviews
-                </MudLink>
-                <MudLink Href="/tag" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.Label" Class="mr-1" /> Tags
-                </MudLink>
-                <MudLink Href="/catalog" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Class="mr-1" /> Catalog
-                </MudLink>
+                <!-- Products Dropdown -->
+                <MudMenu Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" 
+                         AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                         Class="d-flex shrink-link">
+                    <ActivatorContent>
+                        <MudButton StartIcon="@Icons.Material.Filled.ShoppingCart" 
+                                   Color="Color.Inherit" 
+                                   EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                                   Class="d-flex shrink-link">
+                            Products
+                        </MudButton>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Href="/catalog" Icon="@Icons.Material.Filled.Storefront">Product Catalog</MudMenuItem>
+                        <MudMenuItem Href="/product" Icon="@Icons.Material.Filled.Inventory">Manage Products</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/brand" Icon="@Icons.Material.Filled.Business">Brands</MudMenuItem>
+                        <MudMenuItem Href="/category" Icon="@Icons.Material.Filled.Category">Categories</MudMenuItem>
+                        <MudMenuItem Href="/feature" Icon="@Icons.Material.Filled.Extension">Features</MudMenuItem>
+                        <MudMenuItem Href="/tag" Icon="@Icons.Material.Filled.Label">Tags</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/productreview" Icon="@Icons.Material.Filled.RateReview">Product Reviews</MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+                
+                <!-- Services Dropdown -->
+                <MudMenu Icon="@Icons.Material.Filled.Build" Color="Color.Inherit" 
+                         AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                         Class="d-flex shrink-link">
+                    <ActivatorContent>
+                        <MudButton StartIcon="@Icons.Material.Filled.Build" 
+                                   Color="Color.Inherit" 
+                                   EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                                   Class="d-flex shrink-link">
+                            Services
+                        </MudButton>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Href="/services" Icon="@Icons.Material.Filled.Build">Service Catalog</MudMenuItem>
+                        <MudMenuItem Href="/services/list" Icon="@Icons.Material.Filled.Engineering">Manage Services</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/service-companies" Icon="@Icons.Material.Filled.BusinessCenter">Service Companies</MudMenuItem>
+                        <MudMenuItem Href="/service-categories" Icon="@Icons.Material.Filled.ViewList">Service Categories</MudMenuItem>
+                        <MudMenuItem Href="/service-reviews" Icon="@Icons.Material.Filled.Star">Service Reviews</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/service-expenses" Icon="@Icons.Material.Filled.Receipt">Service Expense Tracking</MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+                
+                <!-- General Features -->
                 <MudLink Href="/productchat" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-1" /> Chat
+                    <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="mr-1" /> AI Chat
                 </MudLink>
-                <MudLink Href="/orders" Class="d-flex shrink-link" Color="Color.Inherit">
-                    <MudIcon Icon="@Icons.Material.Filled.ListAlt" Class="mr-1" /> Orders
+                <MudLink Href="/my-orders" Class="d-flex shrink-link" Color="Color.Inherit">
+                    <MudIcon Icon="@Icons.Material.Filled.ListAlt" Class="mr-1" /> My Orders
                 </MudLink>
             </AuthorizeView>
             <AuthorizeView Roles="Administrator">
@@ -121,15 +150,31 @@
             <MudDrawer @bind-Open="drawerOpen" ClipMode="DrawerClipMode.Docked">
                 <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
                 <AuthorizeView>
-                    <MudNavLink Href="/product" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">Products</MudNavLink>
-                    <MudNavLink Href="/brand" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Business">Brands</MudNavLink>
-                    <MudNavLink Href="/category" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Categories</MudNavLink>
-                    <MudNavLink Href="/feature" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Extension">Features</MudNavLink>
-                    <MudNavLink Href="/productreview" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RateReview">Product Reviews</MudNavLink>
-                    <MudNavLink Href="/tag" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Label">Tags</MudNavLink>
-                    <MudNavLink Href="/catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Storefront">Product Catalog</MudNavLink>
-                    <MudNavLink Href="/productchat" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.SmartToy">Product Chats</MudNavLink>
-                    <MudNavLink Href="/orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">My Orders</MudNavLink>
+                    <!-- Products Group -->
+                    <MudNavGroup Title="Products" Icon="@Icons.Material.Filled.ShoppingCart" Expanded="false">
+                        <MudNavLink Href="/catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Storefront">Product Catalog</MudNavLink>
+                        <MudNavLink Href="/product" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Inventory">Manage Products</MudNavLink>
+                        <MudNavLink Href="/brand" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Business">Brands</MudNavLink>
+                        <MudNavLink Href="/category" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Categories</MudNavLink>
+                        <MudNavLink Href="/feature" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Extension">Features</MudNavLink>
+                        <MudNavLink Href="/tag" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Label">Tags</MudNavLink>
+                        <MudNavLink Href="/productreview" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RateReview">Product Reviews</MudNavLink>
+                    </MudNavGroup>
+
+                    <!-- Services Group -->
+                    <MudNavGroup Title="Services" Icon="@Icons.Material.Filled.Build" Expanded="false">
+                        <MudNavLink Href="/services" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Build">Service Catalog</MudNavLink>
+                        <MudNavLink Href="/services/list" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Engineering">Manage Services</MudNavLink>
+                        <MudNavLink Href="/service-companies" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.BusinessCenter">Service Companies</MudNavLink>
+                        <MudNavLink Href="/service-categories" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewList">Service Categories</MudNavLink>
+                        <MudNavLink Href="/service-reviews" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Star">Service Reviews</MudNavLink>
+                        <MudNavLink Href="/service-expenses" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Receipt">Service Expense Tracking</MudNavLink>
+                    </MudNavGroup>
+
+                    <!-- General Features -->
+                    <MudNavLink Href="/productchat" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.SmartToy">AI Chat</MudNavLink>
+                    <MudNavLink Href="/my-orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">My Orders</MudNavLink>
+                    <MudNavLink Href="/notification" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
                 </AuthorizeView>
                 <AuthorizeView Roles="Administrator">
                     <MudNavLink Href="/user" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Users</MudNavLink>

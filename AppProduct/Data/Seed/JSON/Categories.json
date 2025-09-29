@@ -1,0 +1,74 @@
+[
+  {
+    "Id": 1,
+    "Name": "Electronics",
+    "Description": "Electronic devices and gadgets",
+    "IconUrl": "/icons/electronics.svg",
+    "ParentCategoryId": null,
+    "Notes": "Root category for all electronic products",
+    "UserId": 1
+  },
+  {
+    "Id": 2,
+    "Name": "Computers",
+    "Description": "Portable and desktop computers",
+    "IconUrl": "/icons/computer.svg",
+    "ParentCategoryId": 1,
+    "Notes": "Computing devices subcategory",
+    "UserId": 1
+  },
+  {
+    "Id": 3,
+    "Name": "Gaming Computers",
+    "Description": "High-performance gaming computers",
+    "IconUrl": "/icons/gaming-computer.svg",
+    "ParentCategoryId": 2,
+    "Notes": "Specialized gaming hardware",
+    "UserId": 1
+  },
+  {
+    "Id": 4,
+    "Name": "Business Computers",
+    "Description": "Professional computers for business",
+    "IconUrl": "/icons/business-computer.svg",
+    "ParentCategoryId": 2,
+    "Notes": "Enterprise and professional use",
+    "UserId": 1
+  },
+  {
+    "Id": 5,
+    "Name": "Mobile Devices",
+    "Description": "Smartphones and tablets",
+    "IconUrl": "/icons/mobile.svg",
+    "ParentCategoryId": 1,
+    "Notes": "Portable mobile technology",
+    "UserId": 1
+  },
+  {
+    "Id": 6,
+    "Name": "Audio Equipment",
+    "Description": "Audio devices and accessories",
+    "IconUrl": "/icons/audio.svg",
+    "ParentCategoryId": 1,
+    "Notes": "Sound and music equipment",
+    "UserId": 1
+  },
+  {
+    "Id": 7,
+    "Name": "Headphones",
+    "Description": "Over-ear and in-ear audio devices",
+    "IconUrl": "/icons/headphones.svg",
+    "ParentCategoryId": 6,
+    "Notes": "Personal audio devices",
+    "UserId": 1
+  },
+  {
+    "Id": 8,
+    "Name": "Speakers",
+    "Description": "Bluetooth and wired speakers",
+    "IconUrl": "/icons/speakers.svg",
+    "ParentCategoryId": 6,
+    "Notes": "Audio output devices",
+    "UserId": 1
+  }
+]

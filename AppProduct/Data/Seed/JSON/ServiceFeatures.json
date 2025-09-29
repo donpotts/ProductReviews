@@ -1,0 +1,42 @@
+[
+  {
+    "Id": 1,
+    "Name": "24/7 Support",
+    "Description": "Round-the-clock technical support",
+    "IconClass": "fas fa-clock",
+    "IsActive": true,
+    "Type": "Premium"
+  },
+  {
+    "Id": 2,
+    "Name": "Remote Access",
+    "Description": "Secure remote troubleshooting capabilities",
+    "IconClass": "fas fa-desktop",
+    "IsActive": true,
+    "Type": "Included"
+  },
+  {
+    "Id": 3,
+    "Name": "Documentation",
+    "Description": "Comprehensive service documentation",
+    "IconClass": "fas fa-file-alt",
+    "IsActive": true,
+    "Type": "Included"
+  },
+  {
+    "Id": 4,
+    "Name": "Training Included",
+    "Description": "Staff training on implemented solutions",
+    "IconClass": "fas fa-chalkboard-teacher",
+    "IsActive": true,
+    "Type": "Optional"
+  },
+  {
+    "Id": 5,
+    "Name": "Warranty",
+    "Description": "Service warranty and guarantees",
+    "IconClass": "fas fa-certificate",
+    "IsActive": true,
+    "Type": "Included"
+  }
+]

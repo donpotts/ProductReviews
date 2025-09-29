@@ -1,0 +1,72 @@
+@page "/checkout/paypal-redirect"
+@using AppProduct.Shared.Models
+@inject AppService AppService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>PayPal Payment</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+    <MudPaper Class="pa-8" Elevation="2">
+        <MudStack Spacing="4" AlignItems="AlignItems.Center">
+            <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Large" Color="Color.Warning" />
+            <MudText Typo="Typo.h4">PayPal Payment Simulation</MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center">
+                This is a placeholder for PayPal payment integration.
+                In a real implementation, this would redirect to PayPal for payment processing.
+            </MudText>
+            
+            <MudDivider />
+            
+            <MudStack Row="true" Spacing="3">
+                <MudButton Variant="Variant.Filled" 
+                          Color="Color.Success" 
+                          Size="Size.Large"
+                          OnClick="SimulateSuccess"
+                          StartIcon="@Icons.Material.Filled.CheckCircle">
+                    Simulate Successful Payment
+                </MudButton>
+                
+                <MudButton Variant="Variant.Outlined" 
+                          Color="Color.Error" 
+                          Size="Size.Large"
+                          OnClick="SimulateCancel"
+                          StartIcon="@Icons.Material.Filled.Cancel">
+                    Cancel Payment
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter] [SupplyParameterFromQuery] public string? session_id { get; set; }
+    [Parameter] [SupplyParameterFromQuery] public string? user_id { get; set; }
+
+    private async Task SimulateSuccess()
+    {
+        try
+        {
+            // Process the order as a PayPal payment
+            var order = await AppService.ConfirmPaymentAsync(PaymentMethod.PayPal, session_id);
+            
+            if (order?.Id.HasValue == true)
+            {
+                Navigation.NavigateTo("/checkout/success");
+            }
+            else
+            {
+                Snackbar.Add("Failed to process payment", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void SimulateCancel()
+    {
+        Navigation.NavigateTo("/checkout/cancel");
+    }
+}

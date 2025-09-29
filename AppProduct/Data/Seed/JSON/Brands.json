@@ -1,0 +1,82 @@
+[
+  {
+    "Id": 1,
+    "Name": "TechFlow",
+    "Description": "Premium consumer electronics manufacturer",
+    "LogoUrl": "/logos/techflow.svg",
+    "Website": "https://demo-site.com/techflow",
+    "EstablishedDate": "2010-03-15T00:00:00",
+    "Notes": "Leading innovation in consumer tech",
+    "UserId": 1
+  },
+  {
+    "Id": 2,
+    "Name": "QuantumSys",
+    "Description": "Enterprise technology solutions provider",
+    "LogoUrl": "/logos/quantumsys.svg",
+    "Website": "https://demo-site.com/quantumsys",
+    "EstablishedDate": "2008-07-22T00:00:00",
+    "Notes": "B2B focused technology company",
+    "UserId": 1
+  },
+  {
+    "Id": 3,
+    "Name": "VelocityTech",
+    "Description": "Mobile and portable device specialist",
+    "LogoUrl": "/logos/velocitytech.svg",
+    "Website": "https://demo-site.com/velocitytech",
+    "EstablishedDate": "2012-11-08T00:00:00",
+    "Notes": "Mobility and portability focused",
+    "UserId": 1
+  },
+  {
+    "Id": 4,
+    "Name": "NovaTech",
+    "Description": "Computer hardware manufacturer",
+    "LogoUrl": "/logos/novatech.svg",
+    "Website": "https://demo-site.com/novatech",
+    "EstablishedDate": "2005-09-12T00:00:00",
+    "Notes": "Reliable computing solutions",
+    "UserId": 1
+  },
+  {
+    "Id": 5,
+    "Name": "SonicWave",
+    "Description": "Audio equipment specialist",
+    "LogoUrl": "/logos/sonicwave.svg",
+    "Website": "https://demo-site.com/sonicwave",
+    "EstablishedDate": "2015-04-03T00:00:00",
+    "Notes": "Premium audio experiences",
+    "UserId": 1
+  },
+  {
+    "Id": 6,
+    "Name": "PixelCraft",
+    "Description": "Display and visual technology",
+    "LogoUrl": "/logos/pixelcraft.svg",
+    "Website": "https://demo-site.com/pixelcraft",
+    "EstablishedDate": "2009-12-18T00:00:00",
+    "Notes": "Visual technology innovation",
+    "UserId": 1
+  },
+  {
+    "Id": 7,
+    "Name": "StreamlinePC",
+    "Description": "Efficient computing solutions",
+    "LogoUrl": "/logos/streamlinepc.svg",
+    "Website": "https://demo-site.com/streamlinepc",
+    "EstablishedDate": "2013-06-25T00:00:00",
+    "Notes": "Business efficiency focused",
+    "UserId": 1
+  },
+  {
+    "Id": 8,
+    "Name": "GameForge",
+    "Description": "Gaming hardware manufacturer",
+    "LogoUrl": "/logos/gameforge.svg",
+    "Website": "https://demo-site.com/gameforge",
+    "EstablishedDate": "2011-02-14T00:00:00",
+    "Notes": "Gaming performance specialists",
+    "UserId": 1
+  }
+]

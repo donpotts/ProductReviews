@@ -1,0 +1,102 @@
+@using AppProduct.Shared.Models
+
+<MudCard Class="mud-elevation-1 mb-2">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" sm="2">
+                <MudImage Src="@(Service?.ImageUrl ?? "/images/placeholder-service.png")" 
+                         Alt="@Service.GetDisplayName()"
+                         Style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;" />
+            </MudItem>
+            
+            <MudItem xs="12" sm="6">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h6">@Service.GetDisplayName()</MudText>
+                    
+                    @if (Service?.ServiceReview?.Any() == true)
+                    {
+                        <ServiceRatingDisplay Reviews="Service.ServiceReview" ShowBreakdown="false" />
+                    }
+                    
+                    <MudText Typo="Typo.body2" Color="Color.Default">
+                        @(Service?.Description?.Length > 200 ? Service.Description.Substring(0, 200) + "..." : Service?.Description)
+                    </MudText>
+                    
+                    @if (Service?.ServiceCompany?.Any() == true)
+                    {
+                        <MudText Typo="Typo.caption">
+                            Company: @Service.ServiceCompany.First().Name
+                        </MudText>
+                    }
+                    
+                    @if (Service?.RequiresOnsite == true)
+                    {
+                        <MudChip T="string" Text="Onsite Service" Color="Color.Info" Size="Size.Small" />
+                    }
+                    
+                    @if (Service?.EstimatedDurationHours.HasValue == true)
+                    {
+                        <MudText Typo="Typo.caption">
+                            Estimated Duration: @Service.EstimatedDurationHours hours
+                        </MudText>
+                    }
+                </MudStack>
+            </MudItem>
+            
+            <MudItem xs="12" sm="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    @if (Service?.GetBasePrice().HasValue == true)
+                    {
+                        <MudText Typo="Typo.h6" Color="Color.Primary">
+                            @Service.GetBasePrice()?.ToString("C")
+                        </MudText>
+                        <MudText Typo="Typo.caption">
+                            @Service.PricingType.ToString().ToLower()
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h6" Color="Color.Primary">
+                            Custom Quote
+                        </MudText>
+                    }
+                    
+                    @if (Service?.IsAvailable == true)
+                    {
+                        <MudChip T="string" Text="Available" Color="Color.Success" Size="Size.Small" />
+                    }
+                    else
+                    {
+                        <MudChip T="string" Text="Unavailable" Color="Color.Error" Size="Size.Small" />
+                    }
+                </MudStack>
+            </MudItem>
+            
+            <MudItem xs="12" sm="2">
+                <MudStack Spacing="2">
+                    <MudButton Variant="Variant.Outlined" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.Visibility"
+                              FullWidth="true"
+                              Href="@($"/service/view/{Service?.Id}")">
+                        View Details
+                    </MudButton>
+                    
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="@Icons.Material.Filled.RequestQuote"
+                              FullWidth="true"
+                              OnClick="() => OnRequestService.InvokeAsync(Service)"
+                              Disabled="@(Service?.IsAvailable != true)">
+                        Request Service
+                    </MudButton>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public Service? Service { get; set; }
+    [Parameter] public EventCallback<Service> OnRequestService { get; set; }
+}

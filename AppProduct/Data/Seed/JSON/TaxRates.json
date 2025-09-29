@@ -1,0 +1,402 @@
+[
+  {
+    "State": "Alabama",
+    "StateCode": "AL",
+    "StateTaxRate": 4.00,
+    "LocalTaxRate": 5.22,
+    "CombinedTaxRate": 9.22,
+    "IsActive": true
+  },
+  {
+    "State": "Alaska",
+    "StateCode": "AK",
+    "StateTaxRate": 0.00,
+    "LocalTaxRate": 1.43,
+    "CombinedTaxRate": 1.43,
+    "IsActive": true
+  },
+  {
+    "State": "Arizona",
+    "StateCode": "AZ",
+    "StateTaxRate": 5.60,
+    "LocalTaxRate": 2.77,
+    "CombinedTaxRate": 8.37,
+    "IsActive": true
+  },
+  {
+    "State": "Arkansas",
+    "StateCode": "AR",
+    "StateTaxRate": 6.50,
+    "LocalTaxRate": 2.93,
+    "CombinedTaxRate": 9.43,
+    "IsActive": true
+  },
+  {
+    "State": "California",
+    "StateCode": "CA",
+    "StateTaxRate": 7.25,
+    "LocalTaxRate": 3.33,
+    "CombinedTaxRate": 10.58,
+    "IsActive": true
+  },
+  {
+    "State": "Colorado",
+    "StateCode": "CO",
+    "StateTaxRate": 2.90,
+    "LocalTaxRate": 4.87,
+    "CombinedTaxRate": 7.77,
+    "IsActive": true
+  },
+  {
+    "State": "Connecticut",
+    "StateCode": "CT",
+    "StateTaxRate": 6.35,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 6.35,
+    "IsActive": true
+  },
+  {
+    "State": "Delaware",
+    "StateCode": "DE",
+    "StateTaxRate": 0.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 0.00,
+    "IsActive": true
+  },
+  {
+    "State": "Florida",
+    "StateCode": "FL",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 1.05,
+    "CombinedTaxRate": 7.05,
+    "IsActive": true
+  },
+  {
+    "State": "Georgia",
+    "StateCode": "GA",
+    "StateTaxRate": 4.00,
+    "LocalTaxRate": 3.29,
+    "CombinedTaxRate": 7.29,
+    "IsActive": true
+  },
+  {
+    "State": "Hawaii",
+    "StateCode": "HI",
+    "StateTaxRate": 4.17,
+    "LocalTaxRate": 0.41,
+    "CombinedTaxRate": 4.58,
+    "IsActive": true
+  },
+  {
+    "State": "Idaho",
+    "StateCode": "ID",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.03,
+    "CombinedTaxRate": 6.03,
+    "IsActive": true
+  },
+  {
+    "State": "Illinois",
+    "StateCode": "IL",
+    "StateTaxRate": 6.25,
+    "LocalTaxRate": 2.49,
+    "CombinedTaxRate": 8.74,
+    "IsActive": true
+  },
+  {
+    "State": "Indiana",
+    "StateCode": "IN",
+    "StateTaxRate": 7.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 7.00,
+    "IsActive": true
+  },
+  {
+    "State": "Iowa",
+    "StateCode": "IA",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.82,
+    "CombinedTaxRate": 6.82,
+    "IsActive": true
+  },
+  {
+    "State": "Kansas",
+    "StateCode": "KS",
+    "StateTaxRate": 6.50,
+    "LocalTaxRate": 2.17,
+    "CombinedTaxRate": 8.67,
+    "IsActive": true
+  },
+  {
+    "State": "Kentucky",
+    "StateCode": "KY",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 6.00,
+    "IsActive": true
+  },
+  {
+    "State": "Louisiana",
+    "StateCode": "LA",
+    "StateTaxRate": 4.45,
+    "LocalTaxRate": 5.00,
+    "CombinedTaxRate": 9.45,
+    "IsActive": true
+  },
+  {
+    "State": "Maine",
+    "StateCode": "ME",
+    "StateTaxRate": 5.50,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 5.50,
+    "IsActive": true
+  },
+  {
+    "State": "Maryland",
+    "StateCode": "MD",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 6.00,
+    "IsActive": true
+  },
+  {
+    "State": "Massachusetts",
+    "StateCode": "MA",
+    "StateTaxRate": 6.25,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 6.25,
+    "IsActive": true
+  },
+  {
+    "State": "Michigan",
+    "StateCode": "MI",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 6.00,
+    "IsActive": true
+  },
+  {
+    "State": "Minnesota",
+    "StateCode": "MN",
+    "StateTaxRate": 6.88,
+    "LocalTaxRate": 0.55,
+    "CombinedTaxRate": 7.43,
+    "IsActive": true
+  },
+  {
+    "State": "Mississippi",
+    "StateCode": "MS",
+    "StateTaxRate": 7.00,
+    "LocalTaxRate": 0.07,
+    "CombinedTaxRate": 7.07,
+    "IsActive": true
+  },
+  {
+    "State": "Missouri",
+    "StateCode": "MO",
+    "StateTaxRate": 4.23,
+    "LocalTaxRate": 3.90,
+    "CombinedTaxRate": 8.13,
+    "IsActive": true
+  },
+  {
+    "State": "Montana",
+    "StateCode": "MT",
+    "StateTaxRate": 0.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 0.00,
+    "IsActive": true
+  },
+  {
+    "State": "Nebraska",
+    "StateCode": "NE",
+    "StateTaxRate": 5.50,
+    "LocalTaxRate": 1.35,
+    "CombinedTaxRate": 6.85,
+    "IsActive": true
+  },
+  {
+    "State": "Nevada",
+    "StateCode": "NV",
+    "StateTaxRate": 4.60,
+    "LocalTaxRate": 3.55,
+    "CombinedTaxRate": 8.15,
+    "IsActive": true
+  },
+  {
+    "State": "New Hampshire",
+    "StateCode": "NH",
+    "StateTaxRate": 0.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 0.00,
+    "IsActive": true
+  },
+  {
+    "State": "New Jersey",
+    "StateCode": "NJ",
+    "StateTaxRate": 6.63,
+    "LocalTaxRate": -0.03,
+    "CombinedTaxRate": 6.60,
+    "IsActive": true
+  },
+  {
+    "State": "New Mexico",
+    "StateCode": "NM",
+    "StateTaxRate": 5.13,
+    "LocalTaxRate": 2.69,
+    "CombinedTaxRate": 7.82,
+    "IsActive": true
+  },
+  {
+    "State": "New York",
+    "StateCode": "NY",
+    "StateTaxRate": 4.00,
+    "LocalTaxRate": 4.49,
+    "CombinedTaxRate": 8.49,
+    "IsActive": true
+  },
+  {
+    "State": "North Carolina",
+    "StateCode": "NC",
+    "StateTaxRate": 4.75,
+    "LocalTaxRate": 2.22,
+    "CombinedTaxRate": 6.97,
+    "IsActive": true
+  },
+  {
+    "State": "North Dakota",
+    "StateCode": "ND",
+    "StateTaxRate": 5.00,
+    "LocalTaxRate": 1.85,
+    "CombinedTaxRate": 6.85,
+    "IsActive": true
+  },
+  {
+    "State": "Ohio",
+    "StateCode": "OH",
+    "StateTaxRate": 5.75,
+    "LocalTaxRate": 1.42,
+    "CombinedTaxRate": 7.17,
+    "IsActive": true
+  },
+  {
+    "State": "Oklahoma",
+    "StateCode": "OK",
+    "StateTaxRate": 4.50,
+    "LocalTaxRate": 4.42,
+    "CombinedTaxRate": 8.92,
+    "IsActive": true
+  },
+  {
+    "State": "Oregon",
+    "StateCode": "OR",
+    "StateTaxRate": 0.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 0.00,
+    "IsActive": true
+  },
+  {
+    "State": "Pennsylvania",
+    "StateCode": "PA",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.34,
+    "CombinedTaxRate": 6.34,
+    "IsActive": true
+  },
+  {
+    "State": "Rhode Island",
+    "StateCode": "RI",
+    "StateTaxRate": 7.00,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 7.00,
+    "IsActive": true
+  },
+  {
+    "State": "South Carolina",
+    "StateCode": "SC",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 1.43,
+    "CombinedTaxRate": 7.43,
+    "IsActive": true
+  },
+  {
+    "State": "South Dakota",
+    "StateCode": "SD",
+    "StateTaxRate": 4.20,
+    "LocalTaxRate": 1.90,
+    "CombinedTaxRate": 6.10,
+    "IsActive": true
+  },
+  {
+    "State": "Tennessee",
+    "StateCode": "TN",
+    "StateTaxRate": 7.00,
+    "LocalTaxRate": 2.55,
+    "CombinedTaxRate": 9.55,
+    "IsActive": true
+  },
+  {
+    "State": "Texas",
+    "StateCode": "TX",
+    "StateTaxRate": 6.25,
+    "LocalTaxRate": 1.94,
+    "CombinedTaxRate": 8.19,
+    "IsActive": true
+  },
+  {
+    "State": "Utah",
+    "StateCode": "UT",
+    "StateTaxRate": 6.10,
+    "LocalTaxRate": 0.99,
+    "CombinedTaxRate": 7.09,
+    "IsActive": true
+  },
+  {
+    "State": "Vermont",
+    "StateCode": "VT",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.18,
+    "CombinedTaxRate": 6.18,
+    "IsActive": true
+  },
+  {
+    "State": "Virginia",
+    "StateCode": "VA",
+    "StateTaxRate": 5.30,
+    "LocalTaxRate": 0.00,
+    "CombinedTaxRate": 5.30,
+    "IsActive": true
+  },
+  {
+    "State": "Washington",
+    "StateCode": "WA",
+    "StateTaxRate": 6.50,
+    "LocalTaxRate": 3.05,
+    "CombinedTaxRate": 9.55,
+    "IsActive": true
+  },
+  {
+    "State": "West Virginia",
+    "StateCode": "WV",
+    "StateTaxRate": 6.00,
+    "LocalTaxRate": 0.59,
+    "CombinedTaxRate": 6.59,
+    "IsActive": true
+  },
+  {
+    "State": "Wisconsin",
+    "StateCode": "WI",
+    "StateTaxRate": 5.00,
+    "LocalTaxRate": 0.44,
+    "CombinedTaxRate": 5.44,
+    "IsActive": true
+  },
+  {
+    "State": "Wyoming",
+    "StateCode": "WY",
+    "StateTaxRate": 4.00,
+    "LocalTaxRate": 1.29,
+    "CombinedTaxRate": 5.29,
+    "IsActive": true
+  }
+]

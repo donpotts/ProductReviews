@@ -220,17 +220,55 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             var normalized = Math.Max(0m, decimal.Round(amount, 2, MidpointRounding.AwayFromZero));
             return (long)decimal.Round(normalized * 100m, 0, MidpointRounding.AwayFromZero);
         }
+    }
 
-        static void AddMetadataIfPresent(IDictionary<string, string> metadataValues, string key, string? value)
+    [HttpPost("create-paypal-session")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CreatePayPalSessionResponse>> CreatePayPalSessionAsync([FromBody] CreatePayPalSessionRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return;
-            }
-
-            value = value.Trim();
-            metadataValues[key] = value.Length > 500 ? value[..500] : value;
+            return Unauthorized();
         }
+
+        // For now, return a placeholder response since PayPal integration requires proper SDK setup
+        // In a real implementation, you would use PayPal SDK to create a payment session
+        var baseUrl = !string.IsNullOrWhiteSpace(request.BaseUrl)
+            ? request.BaseUrl.TrimEnd('/')
+            : $"{Request.Scheme}://{Request.Host}";
+
+        var cart = await ctx.ShoppingCart
+            .Include(x => x.Items)!
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(x => x.UserId == userId);
+
+        if (cart?.Items == null || cart.Items.Count == 0)
+        {
+            return BadRequest(new { error = "Cart is empty" });
+        }
+
+        // Generate a placeholder session ID for demonstration
+        var sessionId = $"paypal_session_{Guid.NewGuid():N}";
+
+        return Ok(new CreatePayPalSessionResponse
+        {
+            SessionId = sessionId,
+            Url = $"{baseUrl}/checkout/paypal-redirect?session_id={sessionId}&user_id={userId}"
+        });
+    }
+
+    static void AddMetadataIfPresent(IDictionary<string, string> metadataValues, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        value = value.Trim();
+        metadataValues[key] = value.Length > 500 ? value[..500] : value;
     }
 
     [HttpPost("checkout")]

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using System.Net;
 using System.Globalization;
 using System.Net.Http.Json;
+using System.Text.Json; // Added for custom JsonSerializerOptions
 using System.Text.Json.Serialization;
 using System.Web;
 using AppProduct.Shared.Blazor.Authorization;
@@ -18,6 +19,14 @@ public class AppService(
     private readonly IdentityAuthenticationStateProvider authenticationStateProvider
             = authenticationStateProvider as IdentityAuthenticationStateProvider
                 ?? throw new InvalidOperationException();
+
+    // Added: shared JSON options to properly deserialize enum string values (e.g. "Hourly")
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     private static async Task HandleResponseErrorsAsync(HttpResponseMessage response)
     {
@@ -86,19 +95,53 @@ public class AppService(
 
         var uri = $"/odata/{entity}?{queryString}";
 
+        Console.WriteLine($"=== ODATA REQUEST START ===");
+        Console.WriteLine($"Entity: {entity}");
+        Console.WriteLine($"URI: {uri}");
+        Console.WriteLine($"Token present: {!string.IsNullOrEmpty(token)}");
+
         HttpRequestMessage request = new(HttpMethod.Get, uri);
         request.Headers.Authorization = new("Bearer", token);
 
         var response = await httpClient.SendAsync(request);
+        
+        Console.WriteLine($"Response Status: {response.StatusCode}");
+        Console.WriteLine($"Response Headers: {response.Headers}");
+        
+        var responseContent = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Response Content Length: {responseContent.Length}");
+        Console.WriteLine($"Response Content (first 500 chars): {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
 
         await HandleResponseErrorsAsync(response);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
+            Console.WriteLine("=== THROWING UNAUTHORIZED EXCEPTION ===");
             throw new UnauthorizedAccessException("Authentication required");
         }
 
-        return await response.Content.ReadFromJsonAsync<ODataResult<T>>();
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("=== RETURNING EMPTY ODATA RESULT DUE TO NON-SUCCESS STATUS ===");
+            return new ODataResult<T> { Count = 0, Value = Enumerable.Empty<T>() };
+        }
+
+        try
+        {
+            Console.WriteLine("=== ATTEMPTING JSON DESERIALIZATION ===");
+            // Reset the content stream for deserialization
+            var jsonContent = responseContent;
+            var result = JsonSerializer.Deserialize<ODataResult<T>>(jsonContent, JsonOptions);
+            Console.WriteLine($"=== JSON DESERIALIZATION SUCCESS - Items: {result?.Value?.Count()} ===");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== JSON DESERIALIZATION ERROR ===");
+            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine($"Content being parsed: {responseContent}");
+            throw;
+        }
     }
 
 
@@ -241,6 +284,66 @@ public class AppService(
     {
         return GetODataAsync<Product>("Product", top, skip, orderby, filter, count, expand);
     }
+
+    public Task<ODataResult<Service>?> ListServiceODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return GetODataAsync<Service>("Service", top, skip, orderby, filter, count, expand);
+    }
+
+    public Task<ODataResult<ServiceReview>?> ListServiceReviewODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return GetODataAsync<ServiceReview>("ServiceReview", top, skip, orderby, filter, count, expand);
+    }
+
+    public Task<ODataResult<ServiceOrder>?> ListServiceOrderODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return GetODataAsync<ServiceOrder>("ServiceOrder", top, skip, orderby, filter, count, expand);
+    }
+
+    public Task<ODataResult<ServiceExpense>?> ListServiceExpenseODataAsync(
+        int? top = null,
+        int? skip = null,
+        string? orderby = null,
+        string? filter = null,
+        bool count = false,
+        string? expand = null)
+    {
+        return GetODataAsync<ServiceExpense>("ServiceExpense", top, skip, orderby, filter, count, expand);
+    }
+
+    public async Task<ServiceOrder?> GetServiceOrderByIdAsync(long key)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/serviceorder/{key}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceOrder>();
+    }
+
 
     public async Task<Product?> GetProductByIdAsync(long key)
     {
@@ -397,6 +500,36 @@ public class AppService(
         await HandleResponseErrorsAsync(response);
 
         return await response.Content.ReadFromJsonAsync<Category[]>();
+    }
+
+    public async Task<ServiceCategory[]?> ListServiceCategoryAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/servicecategory");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCategory[]>();
+    }
+
+    public async Task<ServiceCompany[]?> ListServiceCompanyAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/servicecompany");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCompany[]>();
     }
 
     public Task<ODataResult<Category>?> ListCategoryODataAsync(
@@ -896,23 +1029,54 @@ public class AppService(
         bool count = false,
         string? expand = null)
     {
-        return await GetODataAsync<Notification>("notification", top, skip, orderby, filter, count, expand);
+        return await GetODataAsync<Notification>("Notification", top, skip, orderby, filter, count, expand);
     }
 
     public async Task<Notification[]?> ListNotificationAsync()
     {
+        Console.WriteLine("=== SIMPLE API REQUEST START ===");
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Get, "/api/notification");
+        Console.WriteLine($"Token present: {!string.IsNullOrEmpty(token)}");
+        
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/Notification");
         request.Headers.Authorization = new("Bearer", token);
+        Console.WriteLine("URI: /api/Notification");
+        
         var response = await httpClient.SendAsync(request);
+        Console.WriteLine($"Response Status: {response.StatusCode}");
+        
+        var responseContent = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Response Content Length: {responseContent.Length}");
+        Console.WriteLine($"Response Content (first 500 chars): {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
+        
         await HandleResponseErrorsAsync(response);
-        return await response.Content.ReadFromJsonAsync<Notification[]>();
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("=== RETURNING EMPTY ARRAY DUE TO NON-SUCCESS STATUS ===");
+            return Array.Empty<Notification>();
+        }
+        
+        try
+        {
+            Console.WriteLine("=== ATTEMPTING JSON DESERIALIZATION (Simple API) ===");
+            var result = JsonSerializer.Deserialize<Notification[]>(responseContent, JsonOptions);
+            Console.WriteLine($"=== SIMPLE API SUCCESS - Items: {result?.Length} ===");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== SIMPLE API JSON ERROR ===");
+            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine($"Content being parsed: {responseContent}");
+            throw;
+        }
     }
 
     public async Task<Notification?> GetNotificationByIdAsync(long key)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Get, $"/api/notification/{key}");
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/Notification/{key}");
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -926,7 +1090,7 @@ public class AppService(
     public async Task UpdateNotificationAsync(long key, Notification data)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Put, $"/api/notification/{key}");
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/Notification/{key}");
         request.Headers.Authorization = new("Bearer", token);
         request.Content = JsonContent.Create(data);
         var response = await httpClient.SendAsync(request);
@@ -936,7 +1100,7 @@ public class AppService(
     public async Task<Notification?> InsertNotificationAsync(Notification data)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/Notification");
         request.Headers.Authorization = new("Bearer", token);
         request.Content = JsonContent.Create(data);
         var response = await httpClient.SendAsync(request);
@@ -947,7 +1111,7 @@ public class AppService(
     public async Task<NotificationDispatchResponse?> SendNotificationAsync(NotificationDispatchRequest requestPayload)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/send");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/Notification/send");
         request.Headers.Authorization = new("Bearer", token);
         request.Content = JsonContent.Create(requestPayload);
         var response = await httpClient.SendAsync(request);
@@ -958,7 +1122,7 @@ public class AppService(
     public async Task DeleteNotificationAsync(long key)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/notification/{key}");
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/Notification/{key}");
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
@@ -967,7 +1131,7 @@ public class AppService(
     public async Task MarkNotificationAsReadAsync(long id)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Post, $"/api/notification/markAsRead/{id}");
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/Notification/markAsRead/{id}");
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
@@ -976,7 +1140,7 @@ public class AppService(
     public async Task MarkAllNotificationsAsReadAsync()
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/markAllAsRead");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/Notification/markAllAsRead");
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
@@ -985,7 +1149,7 @@ public class AppService(
     public async Task<int> GetUnreadNotificationCountAsync()
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Get, "/api/notification/unreadCount");
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/Notification/unreadCount");
         request.Headers.Authorization = new("Bearer", token);
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
@@ -995,7 +1159,7 @@ public class AppService(
     public async Task<object?> BulkUpsertNotificationAsync(IEnumerable<Notification> data)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
-        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/bulkUpsert");
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/Notification/bulkUpsert");
         request.Headers.Authorization = new("Bearer", token);
         request.Content = JsonContent.Create(data);
         var response = await httpClient.SendAsync(request);
@@ -1078,6 +1242,29 @@ public class AppService(
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
         return await response.Content.ReadFromJsonAsync<Product[]>();
+    }
+
+    // Service Search Methods
+    public async Task<Service[]?> SearchServicesAsync(string? query = null, long? categoryId = null, long? companyId = null, 
+        decimal? minPrice = null, decimal? maxPrice = null, bool? isAvailable = null, bool? requiresOnsite = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        
+        var queryString = HttpUtility.ParseQueryString(string.Empty);
+        if (!string.IsNullOrEmpty(query)) queryString.Add("query", query);
+        if (categoryId.HasValue) queryString.Add("categoryId", categoryId.Value.ToString(CultureInfo.InvariantCulture));
+        if (companyId.HasValue) queryString.Add("companyId", companyId.Value.ToString(CultureInfo.InvariantCulture));
+        if (minPrice.HasValue) queryString.Add("minPrice", minPrice.Value.ToString(CultureInfo.InvariantCulture));
+        if (maxPrice.HasValue) queryString.Add("maxPrice", maxPrice.Value.ToString(CultureInfo.InvariantCulture));
+        if (isAvailable.HasValue) queryString.Add("isAvailable", isAvailable.Value.ToString());
+        if (requiresOnsite.HasValue) queryString.Add("requiresOnsite", requiresOnsite.Value.ToString());
+        
+        var uri = $"/api/service/search?{queryString}";
+        HttpRequestMessage request = new(HttpMethod.Get, uri);
+        request.Headers.Authorization = new("Bearer", token);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<Service[]>();
     }
 
     // Order Methods
@@ -1239,6 +1426,27 @@ public class AppService(
         return await response.Content.ReadFromJsonAsync<CreateStripeSessionResponse>();
     }
 
+    public async Task<CreatePayPalSessionResponse?> CreatePayPalSessionAsync(string baseUrl, string? shippingAddress = null, 
+        string? billingAddress = null, string? billingStateCode = null, decimal shippingAmount = 0, string? notes = null)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
+        var requestData = new CreatePayPalSessionRequest
+        { 
+            BaseUrl = baseUrl,
+            ShippingAddress = shippingAddress,
+            BillingAddress = billingAddress,
+            BillingStateCode = billingStateCode,
+            ShippingAmount = shippingAmount,
+            Notes = notes
+        };
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/payment/create-paypal-session");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(requestData);
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+        return await response.Content.ReadFromJsonAsync<CreatePayPalSessionResponse>();
+    }
+
     public async Task<Order?> ConfirmPaymentAsync(PaymentMethod paymentMethod, string? stripeSessionId = null, 
         string? shippingAddress = null, string? billingAddress = null, string billingStateCode = "", 
         decimal? shippingAmount = null, string? notes = null, string? customerEmail = null)
@@ -1368,6 +1576,421 @@ public class AppService(
         await HandleResponseErrorsAsync(response);
 
         return await response.Content.ReadAsByteArrayAsync();
+    }
+
+    // Service management methods
+    public async Task<IEnumerable<Service>> GetServicesAsync()
+    {
+        var result = await GetODataAsync<Service>("Service", expand: "ServiceCategory,ServiceCompany");
+        return result?.Value ?? Enumerable.Empty<Service>();
+    }
+
+    public async Task<Service?> GetServiceAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/service/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<Service>();
+    }
+
+    public async Task<Service> CreateServiceAsync(Service service)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/service");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(service);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<Service>()
+            ?? throw new Exception("Failed to create service");
+    }
+
+    public async Task<Service> UpdateServiceAsync(Service service)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/service/{service.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(service);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<Service>()
+            ?? throw new Exception("Failed to update service");
+    }
+
+    public async Task DeleteServiceAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/service/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    // Service Company management methods
+    public async Task<IEnumerable<ServiceCompany>> GetServiceCompaniesAsync()
+    {
+        var result = await GetODataAsync<ServiceCompany>("ServiceCompany");
+        return result?.Value ?? Enumerable.Empty<ServiceCompany>();
+    }
+
+    public async Task<ServiceCompany?> GetServiceCompanyAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/servicecompany/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<ServiceCompany>();
+    }
+
+    public async Task<ServiceCompany> CreateServiceCompanyAsync(ServiceCompany company)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/servicecompany");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(company);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCompany>()
+            ?? throw new Exception("Failed to create service company");
+    }
+
+    public async Task<ServiceCompany> UpdateServiceCompanyAsync(ServiceCompany company)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/servicecompany/{company.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(company);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCompany>()
+            ?? throw new Exception("Failed to update service company");
+    }
+
+    public async Task DeleteServiceCompanyAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/servicecompany/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    // Service Category management methods
+    public async Task<IEnumerable<ServiceCategory>> GetServiceCategoriesAsync()
+    {
+        var result = await GetODataAsync<ServiceCategory>("ServiceCategory");
+        return result?.Value ?? Enumerable.Empty<ServiceCategory>();
+    }
+
+    public async Task<ServiceCategory?> GetServiceCategoryAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/servicecategory/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<ServiceCategory>();
+    }
+
+    public async Task<ServiceCategory> CreateServiceCategoryAsync(ServiceCategory category)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/servicecategory");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(category);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCategory>()
+            ?? throw new Exception("Failed to create service category");
+    }
+
+    public async Task<ServiceCategory> UpdateServiceCategoryAsync(ServiceCategory category)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/servicecategory/{category.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(category);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceCategory>()
+            ?? throw new Exception("Failed to update service category");
+    }
+
+    public async Task DeleteServiceCategoryAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/servicecategory/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    // Service Review management methods
+    public async Task<IEnumerable<ServiceReview>> GetServiceReviewsAsync()
+    {
+        var result = await GetODataAsync<ServiceReview>("ServiceReview", expand: "Service");
+        return result?.Value ?? Enumerable.Empty<ServiceReview>();
+    }
+
+    public async Task<ServiceReview?> GetServiceReviewAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/servicereview/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<ServiceReview>();
+    }
+
+    public async Task<ServiceReview?> GetServiceReviewByIdAsync(long id)
+    {
+        return await GetServiceReviewAsync(id);
+    }
+
+    public async Task<ServiceReview> CreateServiceReviewAsync(ServiceReview review)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/servicereview");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(review);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceReview>()
+            ?? throw new Exception("Failed to create service review");
+    }
+
+    public async Task<ServiceReview> UpdateServiceReviewAsync(ServiceReview review)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/servicereview/{review.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(review);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceReview>()
+            ?? throw new Exception("Failed to update service review");
+    }
+
+    public async Task DeleteServiceReviewAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/servicereview/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    // Service Order management methods
+    public async Task<ODataResult<ServiceOrder>?> ListServiceOrderODataAsync()
+    {
+        return await GetODataAsync<ServiceOrder>("ServiceOrder", expand: "Items,Items.Service");
+    }
+
+    public async Task<ServiceOrder?> GetServiceOrderAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, $"/api/serviceorder/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        return await response.Content.ReadFromJsonAsync<ServiceOrder>();
+    }
+
+    // Service Expense management methods
+    public async Task<ODataResult<ServiceExpense>?> ListServiceExpenseODataAsync(long? serviceOrderId = null)
+    {
+        var filter = serviceOrderId.HasValue ? $"ServiceOrderId eq {serviceOrderId}" : null;
+        return await GetODataAsync<ServiceExpense>("ServiceExpense", filter: filter, expand: "ServiceOrder");
+    }
+
+    public async Task<ServiceExpense> CreateServiceExpenseAsync(ServiceExpense expense)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/serviceexpense");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(expense);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceExpense>()
+            ?? throw new Exception("Failed to create service expense");
+    }
+
+    public async Task<ServiceExpense> UpdateServiceExpenseAsync(ServiceExpense expense)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/serviceexpense/{expense.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(expense);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        return await response.Content.ReadFromJsonAsync<ServiceExpense>()
+            ?? throw new Exception("Failed to update service expense");
+    }
+
+    public async Task DeleteServiceExpenseAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/serviceexpense/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+    }
+
+    // Service Order methods
+    public async Task<IEnumerable<ServiceOrder>> GetServiceOrdersAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/serviceorder");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync();
+        var serviceOrders = JsonSerializer.Deserialize<IEnumerable<ServiceOrder>>(json, JsonOptions);
+        return serviceOrders ?? new List<ServiceOrder>();
+    }
+
+
+    public async Task<ServiceOrder> CreateServiceOrderAsync(ServiceOrder serviceOrder)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/serviceorder");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(serviceOrder);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync();
+        var createdServiceOrder = JsonSerializer.Deserialize<ServiceOrder>(json, JsonOptions);
+        return createdServiceOrder ?? throw new InvalidOperationException("Failed to deserialize created service order");
+    }
+
+    public async Task<ServiceOrder> UpdateServiceOrderAsync(ServiceOrder serviceOrder)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Put, $"/api/serviceorder/{serviceOrder.Id}");
+        request.Headers.Authorization = new("Bearer", token);
+        request.Content = JsonContent.Create(serviceOrder);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
+
+        var json = await response.Content.ReadAsStringAsync();
+        var updatedServiceOrder = JsonSerializer.Deserialize<ServiceOrder>(json, JsonOptions);
+        return updatedServiceOrder ?? throw new InvalidOperationException("Failed to deserialize updated service order");
+    }
+
+    public async Task DeleteServiceOrderAsync(long id)
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Delete, $"/api/serviceorder/{id}");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+        await HandleResponseErrorsAsync(response);
     }
 
 }
