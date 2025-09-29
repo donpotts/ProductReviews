@@ -11,16 +11,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AppProduct.Controllers;
 
-[Route("api/Notification")]
+[Route("api/[controller]")]
 [ApiController]
 [Authorize]
-public class NotificationApiController : ControllerBase
+public class NotificationController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
-    private readonly ILogger<NotificationApiController> _logger;
+    private readonly ILogger<NotificationController> _logger;
 
-    public NotificationApiController(ApplicationDbContext context, INotificationService notificationService, ILogger<NotificationApiController> logger)
+    public NotificationController(ApplicationDbContext context, INotificationService notificationService, ILogger<NotificationController> logger)
     {
         _context = context;
         _notificationService = notificationService;

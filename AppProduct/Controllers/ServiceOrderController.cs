@@ -14,7 +14,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ServiceOrderController(ApplicationDbContext ctx, IEmailNotificationService emailService, IServiceProvider serviceProvider, ILogger<ServiceOrderController> logger) : ControllerBase
+public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFactory scopeFactory, ILogger<ServiceOrderController> logger) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -82,7 +82,7 @@ public class ServiceOrderController(ApplicationDbContext ctx, IEmailNotification
         {
             try
             {
-                using var scope = serviceProvider.CreateScope();
+                using var scope = scopeFactory.CreateScope();
                 var scopedCtx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var scopedEmailService = scope.ServiceProvider.GetRequiredService<IEmailNotificationService>();
                 
@@ -139,7 +139,7 @@ public class ServiceOrderController(ApplicationDbContext ctx, IEmailNotification
                 {
                     try
                     {
-                        using var scope = serviceProvider.CreateScope();
+                        using var scope = scopeFactory.CreateScope();
                         var scopedEmailService = scope.ServiceProvider.GetRequiredService<IEmailNotificationService>();
                         
                         var customerEmail = serviceOrder.ContactEmail ?? "customer@example.com";
