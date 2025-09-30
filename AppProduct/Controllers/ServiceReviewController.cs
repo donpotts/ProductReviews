@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using AppProduct.Data;
 using AppProduct.Shared.Models;
+using AppProduct.Services;
 
 namespace AppProduct.Controllers;
 
@@ -13,7 +14,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ServiceReviewController(ApplicationDbContext ctx) : ControllerBase
+public class ServiceReviewController(ApplicationDbContext ctx, INotificationService notificationService) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -45,6 +46,9 @@ public class ServiceReviewController(ApplicationDbContext ctx) : ControllerBase
 
         ctx.ServiceReview.Add(review);
         await ctx.SaveChangesAsync();
+
+        // Create notification for new service review
+        await CreateServiceReviewNotificationAsync(review);
 
         return Created($"/api/ServiceReview/{review.Id}", review);
     }
@@ -87,5 +91,26 @@ public class ServiceReviewController(ApplicationDbContext ctx) : ControllerBase
         await ctx.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task CreateServiceReviewNotificationAsync(ServiceReview review)
+    {
+        try
+        {
+            // Create notification for admins about new service review
+            await notificationService.CreateNotificationAsync(
+                title: "New Service Review",
+                message: $"{review.CustomerName} left a {review.Rating}-star review: \"{review.Title}\"",
+                type: "Info",
+                userId: null, // System-wide notification for admins
+                actionUrl: $"/service-reviews/{review.Id}",
+                notes: $"Service Review #{review.Id}"
+            );
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the review creation process
+            // Error logged internally but not displayed to user
+        }
     }
 }

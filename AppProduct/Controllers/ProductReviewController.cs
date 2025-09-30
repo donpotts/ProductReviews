@@ -146,7 +146,7 @@ public class ProductReviewController(ApplicationDbContext ctx, IEmailNotificatio
                                 $"Response to Your Review",
                                 $"We've responded to your review of {productDisplayName}",
                                 "Success",
-                                productReview.UserId.Value,
+                                productReview.UserId.Value.ToString(),
                                 $"/products/{productReview.ProductId}#reviews"
                             );
                         }

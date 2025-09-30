@@ -26,6 +26,26 @@
                   OnClick="MarkAllAsRead">
             Mark All Read
         </MudButton>
+        @* Test buttons commented out for production
+        <MudButton Variant="Variant.Outlined" 
+                  StartIcon="@Icons.Material.Filled.BugReport" 
+                  Color="Color.Warning" 
+                  OnClick="TestNotifications">
+            Test API
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" 
+                  StartIcon="@Icons.Material.Filled.Add" 
+                  Color="Color.Info" 
+                  OnClick="CreateTestNotifications">
+            Create Test Notifications
+        </MudButton>
+        *@
+        <MudButton Variant="Variant.Outlined" 
+                  StartIcon="@Icons.Material.Filled.Build" 
+                  Color="Color.Error" 
+                  OnClick="FixUserIds">
+            Fix User IDs
+        </MudButton>
     </MudStack>
 </MudStack>
 
@@ -268,6 +288,50 @@ else
         else
         {
             await grid!.ReloadServerData();
+        }
+    }
+
+    // Test methods commented out for production
+    /*
+    private async Task TestNotifications()
+    {
+        try
+        {
+            var result = await AppService.TestGetNotificationsAsync();
+            Snackbar.Add($"Test API returned {result?.Count ?? 0} notifications", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Test API failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CreateTestNotifications()
+    {
+        try
+        {
+            var result = await AppService.CreateTestNotificationsAsync();
+            Snackbar.Add("Test notifications created successfully!", Severity.Success);
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to create test notifications: {ex.Message}", Severity.Error);
+        }
+    }
+    */
+
+    private async Task FixUserIds()
+    {
+        try
+        {
+            var result = await AppService.FixNotificationUserIdsAsync();
+            Snackbar.Add("User IDs fixed successfully! Notifications should now appear.", Severity.Success);
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to fix user IDs: {ex.Message}", Severity.Error);
         }
     }
 

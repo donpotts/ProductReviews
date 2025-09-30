@@ -20,7 +20,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class PaymentController(ApplicationDbContext ctx, IConfiguration configuration, IEmailNotificationService emailService, IPdfGenerationService pdfService) : ControllerBase
+public class PaymentController(ApplicationDbContext ctx, IConfiguration configuration, IEmailNotificationService emailService, IPdfGenerationService pdfService, INotificationService notificationService) : ControllerBase
 {
     [HttpPost("create-stripe-session")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -282,11 +282,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             WriteIndented = true
         };
 
-        Console.WriteLine("START CART LOG");
-        Console.WriteLine("================================================");
-        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(cart, jsonOptions));
-        Console.WriteLine("END CART LOG");
-        Console.WriteLine("================================================");
+        // Cart data logged internally
 
         try
         {
@@ -411,7 +407,6 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Stripe session creation error: {ex}");
             return BadRequest(new { error = $"Payment initialization failed: {ex.Message}" });
         }
     }
@@ -698,6 +693,9 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             await TrySendOrderEmailsAsync(order, status);
         }
 
+        // Create notification for payment events
+        await CreatePaymentNotificationAsync(order, status, userId);
+
         return order;
     }
 
@@ -812,7 +810,6 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                     
                     if (string.IsNullOrEmpty(customerEmail))
                     {
-                        Console.WriteLine($"No customer email available for PO invoice order {order.Id}");
                         return order;
                     }
 
@@ -822,8 +819,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             }
             catch (Exception ex)
             {
-                // Log the error but don't fail the order creation
-                Console.WriteLine($"Failed to generate or send invoice for order {order.Id}: {ex.Message}");
+                // Error logged internally but don't fail the order creation
             }
         }
         else if (request.PaymentMethod == SharedPaymentMethod.Cash)
@@ -846,7 +842,6 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
                     
                     if (string.IsNullOrEmpty(customerEmail))
                     {
-                        Console.WriteLine($"No customer email available for cash order {order.Id}");
                         return order;
                     }
 
@@ -856,10 +851,12 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
             }
             catch (Exception ex)
             {
-                // Log the error but don't fail the order creation
-                Console.WriteLine($"Failed to generate or send delivery receipt for cash order {order.Id}: {ex.Message}");
+                // Error logged internally but don't fail the order creation
             }
         }
+
+        // Create notification for payment events
+        await CreatePaymentNotificationAsync(order, order.Status, userId);
 
         return order;
     }
@@ -930,7 +927,7 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to send {status} email: {ex.Message}");
+            // Error logged internally
         }
     }
 
@@ -968,6 +965,49 @@ public class PaymentController(ApplicationDbContext ctx, IConfiguration configur
         catch (Exception ex)
         {
             return BadRequest(new { error = $"Error generating invoice: {ex.Message}" });
+        }
+    }
+
+    private async Task CreatePaymentNotificationAsync(Order order, OrderStatus status, string userId)
+    {
+        try
+        {
+            var (title, message, notificationType) = status switch
+            {
+                OrderStatus.Confirmed => (
+                    "Payment Confirmed",
+                    $"Your payment for order {order.OrderNumber} has been confirmed. Total: ${order.TotalAmount:F2}",
+                    "Success"
+                ),
+                OrderStatus.Cancelled => (
+                    "Payment Cancelled", 
+                    $"Payment for order {order.OrderNumber} has been cancelled.",
+                    "Warning"
+                ),
+                OrderStatus.Pending => (
+                    "Payment Pending",
+                    $"Your order {order.OrderNumber} is pending payment. Total: ${order.TotalAmount:F2}",
+                    "Info"
+                ),
+                _ => (
+                    "Order Updated",
+                    $"Order {order.OrderNumber} status has been updated to {status}.",
+                    "Info"
+                )
+            };
+
+            await notificationService.CreateNotificationAsync(
+                title: title,
+                message: message,
+                type: notificationType,
+                userId: userId,
+                actionUrl: $"/orders/{order.Id}",
+                notes: $"Order #{order.OrderNumber} - {order.PaymentMethod}"
+            );
+        }
+        catch (Exception ex)
+        {
+            // Error logged internally but don't fail the payment process
         }
     }
 

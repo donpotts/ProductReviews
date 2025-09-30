@@ -3,7 +3,7 @@
 @inject ISnackbar Snackbar
 @attribute [Authorize]
 
-<PageTitle>Product Chat</PageTitle>
+<PageTitle>Product & Service Chat</PageTitle>
 
 <style>
     .pulse-spin { animation: pulse 1s ease-in-out infinite; }
@@ -15,8 +15,8 @@
 
 <MudStack Class="mt-4" Spacing="2">
     <MudPaper Class="pa-4" Elevation="2">
-        <MudText Typo="Typo.h5">Product Knowledge Chat</MudText>
-        <MudText Typo="Typo.caption" Class="mb-2">Ask questions strictly about products. The assistant refuses anything else.</MudText>
+        <MudText Typo="Typo.h5">Product & Service Chat</MudText>
+        <MudText Typo="Typo.caption" Class="mb-2">Ask questions about our products and services. The assistant refuses anything else.</MudText>
         <MudTextField @bind-Value="userQuestion"
                       Label="Your question"
                       Variant="Variant.Outlined"
@@ -49,16 +49,49 @@
                 {
                     <MudExpansionPanel Text="@($"Q: {r.Question}")" Expanded="@r.Expanded" ExpandedChanged="@(v => r.Expanded = v)">
                         <MudText Typo="Typo.body1">@((MarkupString)r.AnswerHtml)</MudText>
-                        @if (r.Sources.Any())
+                        @if (r.ProductSources.Any() || r.ServiceSources.Any() || r.OrderSources.Any() || r.ServiceOrderSources.Any())
                         {
                             <MudDivider Class="my-2" />
-                            <MudText Typo="Typo.subtitle2">Sources:</MudText>
-                            <ul class="mud-typography-body2">
-                                @foreach (var s in r.Sources)
-                                {
-                                    <li>@s.Id - @s.Name (@s.Price)</li>
-                                }
-                            </ul>
+                            @if (r.ProductSources.Any())
+                            {
+                                <MudText Typo="Typo.subtitle2">Product Sources:</MudText>
+                                <ul class="mud-typography-body2">
+                                    @foreach (var s in r.ProductSources)
+                                    {
+                                        <li>@s.Id - @s.Name (@(s.Price?.ToString("C") ?? "N/A"))</li>
+                                    }
+                                </ul>
+                            }
+                            @if (r.ServiceSources.Any())
+                            {
+                                <MudText Typo="Typo.subtitle2">Service Sources:</MudText>
+                                <ul class="mud-typography-body2">
+                                    @foreach (var s in r.ServiceSources)
+                                    {
+                                        <li>@s.Id - @s.Name (@(s.Price?.ToString("C") ?? "N/A")) - @s.Type</li>
+                                    }
+                                </ul>
+                            }
+                            @if (r.OrderSources.Any())
+                            {
+                                <MudText Typo="Typo.subtitle2">Order Sources:</MudText>
+                                <ul class="mud-typography-body2">
+                                    @foreach (var s in r.OrderSources)
+                                    {
+                                        <li>@s.Id - @s.Name (@(s.Price?.ToString("C") ?? "N/A")) - @s.Type</li>
+                                    }
+                                </ul>
+                            }
+                            @if (r.ServiceOrderSources.Any())
+                            {
+                                <MudText Typo="Typo.subtitle2">Service Order Sources:</MudText>
+                                <ul class="mud-typography-body2">
+                                    @foreach (var s in r.ServiceOrderSources)
+                                    {
+                                        <li>@s.Id - @s.Name (@(s.Price?.ToString("C") ?? "N/A")) - @s.Type</li>
+                                    }
+                                </ul>
+                            }
                         }
                     </MudExpansionPanel>
                 }
@@ -82,7 +115,7 @@
         StateHasChanged();
         try
         {
-            var (answer, sources) = await AppService.AskProductChatAsync(question);
+            var (answer, productSources, serviceSources, orderSources, serviceOrderSources) = await AppService.AskProductChatAsync(question);
             var safe = System.Net.WebUtility.HtmlEncode(answer).Replace("\n", "<br/>");
             // collapse previous, expand new
             foreach (var r in responses) r.Expanded = false;
@@ -90,7 +123,10 @@
             {
                 Question = question,
                 AnswerHtml = safe,
-                Sources = sources.ToList(),
+                ProductSources = productSources.ToList(),
+                ServiceSources = serviceSources.ToList(),
+                OrderSources = orderSources.ToList(),
+                ServiceOrderSources = serviceOrderSources.ToList(),
                 Expanded = true
             });
             userQuestion = string.Empty;
@@ -117,7 +153,10 @@
     {
         public string Question { get; set; } = string.Empty;
         public string AnswerHtml { get; set; } = string.Empty;
-        public List<AppService.ProductSource> Sources { get; set; } = new();
+        public List<AppService.SourceItem> ProductSources { get; set; } = new();
+        public List<AppService.SourceItem> ServiceSources { get; set; } = new();
+        public List<AppService.SourceItem> OrderSources { get; set; } = new();
+        public List<AppService.SourceItem> ServiceOrderSources { get; set; } = new();
         public bool Expanded { get; set; }
     }
 }

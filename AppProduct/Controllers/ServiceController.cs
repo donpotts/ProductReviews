@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using AppProduct.Data;
 using AppProduct.Shared.Models;
-using AppProduct.Services; // added
+using AppProduct.Services;
+using System.Security.Claims;
 
 namespace AppProduct.Controllers;
 
@@ -15,7 +16,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ServiceController(ApplicationDbContext ctx, IEmailNotificationService emailService, ILogger<ServiceController> logger) : ControllerBase // modified constructor
+public class ServiceController(ApplicationDbContext ctx, IEmailNotificationService emailService, INotificationService notificationService, ILogger<ServiceController> logger) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -67,6 +68,27 @@ public class ServiceController(ApplicationDbContext ctx, IEmailNotificationServi
 
         ctx.Service.Add(service);
         await ctx.SaveChangesAsync();
+
+        // Create in-app notification for service submission
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(currentUserId))
+        {
+            try
+            {
+                await notificationService.CreateNotificationAsync(
+                    "Service Submitted",
+                    $"Your service '{service.Name}' has been submitted successfully and is under review.",
+                    "Success",
+                    currentUserId,
+                    $"/services/{service.Id}",
+                    $"Service: {service.Name}"
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed creating in-app notification for service {ServiceId}", service.Id);
+            }
+        }
 
         // fire and forget email (avoid blocking request)
         _ = Task.Run(async () =>

@@ -397,37 +397,8 @@ using (var scope = app.Services.CreateScope())
             }
         }
 
-        // Seed Service data from JSON files
-        
-        if (!ctx.ServiceCategory.Any())
-        {
-            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceCategory, 
-                JsonSeedDataHelper.GetJsonSeedPath("ServiceCategories.json"), currentTimestamp);
-        }
-
-        if (!ctx.ServiceCompany.Any())
-        {
-            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceCompany, 
-                JsonSeedDataHelper.GetJsonSeedPath("ServiceCompanies.json"), currentTimestamp);
-        }
-
-        if (!ctx.ServiceFeature.Any())
-        {
-            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceFeature, 
-                JsonSeedDataHelper.GetJsonSeedPath("ServiceFeatures.json"), currentTimestamp);
-        }
-
-        if (!ctx.ServiceTag.Any())
-        {
-            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceTag, 
-                JsonSeedDataHelper.GetJsonSeedPath("ServiceTags.json"), currentTimestamp);
-        }
-
-        if (!ctx.Service.Any())
-        {
-            await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.Service, 
-                JsonSeedDataHelper.GetJsonSeedPath("Services.json"), currentTimestamp);
-        }
+        // Seed Service data
+        await ServiceDataSeeder.EnsureSeedDataAsync(ctx);
 
         if (!ctx.ServiceReview.Any())
         {
@@ -445,6 +416,22 @@ using (var scope = app.Services.CreateScope())
         {
             await JsonSeedDataHelper.SeedFromJsonAsync(ctx, ctx.ServiceExpense, 
                 JsonSeedDataHelper.GetJsonSeedPath("ServiceExpenses.json"), currentTimestamp);
+        }
+
+        if (!ctx.Notification.Any())
+        {
+            ctx.Notification.Add(new Notification
+            {
+                Title = "Welcome to ProductReviews",
+                Message = "This is a system notification created during initial seeding.",
+                Type = "Info",
+                UserId = null,
+                IsRead = false,
+                CreatedDate = DateTime.UtcNow,
+                ActionUrl = "/",
+                Notes = "Seeded default notification (startup)"
+            });
+            await ctx.SaveChangesAsync();
         }
 
     }

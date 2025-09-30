@@ -14,7 +14,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFactory scopeFactory, ILogger<ServiceOrderController> logger) : ControllerBase
+public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFactory scopeFactory, ILogger<ServiceOrderController> logger, INotificationService notificationService) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -77,6 +77,9 @@ public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFacto
         ctx.ServiceOrder.Add(serviceOrder);
         await ctx.SaveChangesAsync();
 
+        // Create notification for service order
+        await CreateServiceOrderNotificationAsync(serviceOrder, "created");
+
         // Send email notification
         _ = Task.Run(async () =>
         {
@@ -131,6 +134,12 @@ public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFacto
         try
         {
             await ctx.SaveChangesAsync();
+            
+            // Create notification for status update if status changed
+            if (oldStatus != serviceOrder.Status)
+            {
+                await CreateServiceOrderNotificationAsync(serviceOrder, "status_updated");
+            }
             
             // Send status update email if status changed
             if (oldStatus != serviceOrder.Status)
@@ -220,6 +229,71 @@ public class ServiceOrderController(ApplicationDbContext ctx, IServiceScopeFacto
         await ctx.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task CreateServiceOrderNotificationAsync(ServiceOrder serviceOrder, string action)
+    {
+        try
+        {
+            var (title, message, notificationType) = action switch
+            {
+                "created" => (
+                    "Service Order Created",
+                    $"Your service order #{serviceOrder.Id} has been created successfully. Total: ${serviceOrder.TotalAmount:F2}",
+                    "Success"
+                ),
+                "status_updated" => serviceOrder.Status switch
+                {
+                    ServiceOrderStatus.Confirmed => (
+                        "Service Order Confirmed",
+                        $"Your service order #{serviceOrder.Id} has been confirmed and is being prepared.",
+                        "Success"
+                    ),
+                    ServiceOrderStatus.InProgress => (
+                        "Service Work Started",
+                        $"Work has started on your service order #{serviceOrder.Id}.",
+                        "Info"
+                    ),
+                    ServiceOrderStatus.Completed => (
+                        "Service Order Completed",
+                        $"Your service order #{serviceOrder.Id} has been completed successfully!",
+                        "Success"
+                    ),
+                    ServiceOrderStatus.Cancelled => (
+                        "Service Order Cancelled",
+                        $"Your service order #{serviceOrder.Id} has been cancelled.",
+                        "Warning"
+                    ),
+                    _ => (
+                        "Service Order Updated",
+                        $"Service order #{serviceOrder.Id} status has been updated to {serviceOrder.Status}.",
+                        "Info"
+                    )
+                },
+                _ => (
+                    "Service Order Updated",
+                    $"Service order #{serviceOrder.Id} has been updated.",
+                    "Info"
+                )
+            };
+
+            if (!string.IsNullOrEmpty(serviceOrder.UserId))
+            {
+                await notificationService.CreateNotificationAsync(
+                    title: title,
+                    message: message,
+                    type: notificationType,
+                    userId: serviceOrder.UserId,
+                    actionUrl: $"/service-orders/{serviceOrder.Id}",
+                    notes: $"Service Order #{serviceOrder.Id} - {serviceOrder.OrderNumber}"
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the service order process
+            logger.LogError(ex, "Failed to create service order notification for order {OrderId}", serviceOrder.Id);
+        }
     }
 
     private bool ServiceOrderExists(long id)

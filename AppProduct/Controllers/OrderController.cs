@@ -14,7 +14,7 @@ namespace AppProduct.Controllers;
 [ApiController]
 [Authorize]
 [EnableRateLimiting("Fixed")]
-public class OrderController(ApplicationDbContext ctx, IEmailNotificationService emailService, IPdfGenerationService pdfService) : ControllerBase
+public class OrderController(ApplicationDbContext ctx, IEmailNotificationService emailService, IPdfGenerationService pdfService, INotificationService notificationService) : ControllerBase
 {
     [HttpGet("")]
     [EnableQuery]
@@ -116,6 +116,9 @@ public class OrderController(ApplicationDbContext ctx, IEmailNotificationService
 
         await ctx.SaveChangesAsync();
 
+        // Create notification for new order
+        await CreateOrderStatusNotificationAsync(order, OrderStatus.Pending);
+
         return CreatedAtAction(nameof(GetAsync), new { key = order.Id }, order);
     }
 
@@ -144,6 +147,9 @@ public class OrderController(ApplicationDbContext ctx, IEmailNotificationService
 
         await ctx.SaveChangesAsync();
 
+        // Create notification for order status update
+        await CreateOrderStatusNotificationAsync(order, request.Status);
+
         return Ok(order);
     }
 
@@ -169,6 +175,9 @@ public class OrderController(ApplicationDbContext ctx, IEmailNotificationService
 
         order.Status = OrderStatus.Cancelled;
         await ctx.SaveChangesAsync();
+
+        // Create notification for order cancellation
+        await CreateOrderStatusNotificationAsync(order, OrderStatus.Cancelled);
 
         return Ok(order);
     }
@@ -233,6 +242,64 @@ public class OrderController(ApplicationDbContext ctx, IEmailNotificationService
         catch (Exception ex)
         {
             return BadRequest($"Failed to generate PDF: {ex.Message}");
+        }
+    }
+
+    private async Task CreateOrderStatusNotificationAsync(Order order, OrderStatus status)
+    {
+        try
+        {
+            var (title, message, notificationType) = status switch
+            {
+                OrderStatus.Pending => (
+                    "Order Created",
+                    $"Your order {order.OrderNumber} has been created successfully. Total: ${order.TotalAmount:F2}",
+                    "Success"
+                ),
+                OrderStatus.Processing => (
+                    "Order Processing",
+                    $"Your order {order.OrderNumber} is now being processed.",
+                    "Info"
+                ),
+                OrderStatus.Shipped => (
+                    "Order Shipped",
+                    $"Good news! Your order {order.OrderNumber} has been shipped. Tracking: {order.TrackingNumber ?? "Available soon"}",
+                    "Success"
+                ),
+                OrderStatus.Delivered => (
+                    "Order Delivered",
+                    $"Your order {order.OrderNumber} has been delivered successfully!",
+                    "Success"
+                ),
+                OrderStatus.Cancelled => (
+                    "Order Cancelled",
+                    $"Order {order.OrderNumber} has been cancelled.",
+                    "Warning"
+                ),
+                OrderStatus.Refunded => (
+                    "Order Refunded",
+                    $"Your refund for order {order.OrderNumber} has been processed.",
+                    "Info"
+                ),
+                _ => (
+                    "Order Updated",
+                    $"Order {order.OrderNumber} status has been updated to {status}.",
+                    "Info"
+                )
+            };
+
+            await notificationService.CreateNotificationAsync(
+                title: title,
+                message: message,
+                type: notificationType,
+                userId: order.UserId,
+                actionUrl: $"/orders/{order.Id}",
+                notes: $"Order #{order.OrderNumber}"
+            );
+        }
+        catch (Exception ex)
+        {
+            // Error logged internally but don't fail the order status update process
         }
     }
 

@@ -13,7 +13,7 @@ public class NotificationService : INotificationService
     private readonly ILogger<NotificationService> _logger;
     
     // Store subscribers for each user
-    private readonly ConcurrentDictionary<long, List<TaskCompletionSource<Notification>>> _subscribers = new();
+    private readonly ConcurrentDictionary<string, List<TaskCompletionSource<Notification>>> _subscribers = new();
 
     public NotificationService(IServiceProvider serviceProvider, ILogger<NotificationService> logger)
     {
@@ -25,7 +25,7 @@ public class NotificationService : INotificationService
         string title,
         string message,
         string type = "Info",
-        long? userId = null,
+        string? userId = null,
         string? actionUrl = null,
         string? notes = null)
     {
@@ -51,7 +51,7 @@ public class NotificationService : INotificationService
         _logger.LogInformation("Created notification: {Title} for user: {UserId}", title, userId);
 
         // Notify SSE subscribers
-        if (userId.HasValue && _subscribers.TryGetValue(userId.Value, out var userSubscribers))
+        if (!string.IsNullOrEmpty(userId) && _subscribers.TryGetValue(userId, out var userSubscribers))
         {
             var subscribersToNotify = userSubscribers.ToList();
             userSubscribers.Clear();
@@ -72,7 +72,7 @@ public class NotificationService : INotificationService
         return notification;
     }
 
-    public async Task<List<Notification>> GetUserNotificationsAsync(long userId, bool unreadOnly = false)
+    public async Task<List<Notification>> GetUserNotificationsAsync(string userId, bool unreadOnly = false)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -89,7 +89,7 @@ public class NotificationService : INotificationService
         return await query.Take(50).ToListAsync(); // Limit to 50 most recent
     }
 
-    public async Task<int> GetUnreadCountAsync(long userId)
+    public async Task<int> GetUnreadCountAsync(string userId)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -113,7 +113,7 @@ public class NotificationService : INotificationService
         }
     }
 
-    public async Task MarkAllAsReadAsync(long userId)
+    public async Task MarkAllAsReadAsync(string userId)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -134,7 +134,7 @@ public class NotificationService : INotificationService
         }
     }
 
-    public async IAsyncEnumerable<Notification> GetNotificationStream(long userId, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Notification> GetNotificationStream(string userId, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting SSE stream for user {UserId}", userId);
 
@@ -200,7 +200,7 @@ public class NotificationService : INotificationService
     }
 
     // Service-specific notification methods
-    public async Task<Notification> NotifyServiceAddedAsync(long? userId, Service service)
+    public async Task<Notification> NotifyServiceAddedAsync(string? userId, Service service)
     {
         var companyName = service.ServiceCompany?.FirstOrDefault()?.Name ?? "Unknown Provider";
         return await CreateNotificationAsync(
@@ -213,7 +213,7 @@ public class NotificationService : INotificationService
         );
     }
 
-    public async Task<Notification> NotifyServiceUpdatedAsync(long? userId, Service service)
+    public async Task<Notification> NotifyServiceUpdatedAsync(string? userId, Service service)
     {
         var companyName = service.ServiceCompany?.FirstOrDefault()?.Name ?? "Unknown Provider";
         return await CreateNotificationAsync(
@@ -226,7 +226,7 @@ public class NotificationService : INotificationService
         );
     }
 
-    public async Task<Notification> NotifyServiceReviewAddedAsync(long? userId, ServiceReview review, Service service)
+    public async Task<Notification> NotifyServiceReviewAddedAsync(string? userId, ServiceReview review, Service service)
     {
         return await CreateNotificationAsync(
             "New Service Review",
@@ -238,7 +238,7 @@ public class NotificationService : INotificationService
         );
     }
 
-    public async Task<Notification> NotifyServiceOrderCreatedAsync(long? userId, ServiceOrder order)
+    public async Task<Notification> NotifyServiceOrderCreatedAsync(string? userId, ServiceOrder order)
     {
         var totalAmount = order.Items.Sum(i => (i.HoursEstimated ?? 1) * (i.UnitPrice ?? 0));
         return await CreateNotificationAsync(
@@ -251,7 +251,7 @@ public class NotificationService : INotificationService
         );
     }
 
-    public async Task<Notification> NotifyServiceExpenseAddedAsync(long? userId, ServiceExpense expense)
+    public async Task<Notification> NotifyServiceExpenseAddedAsync(string? userId, ServiceExpense expense)
     {
         return await CreateNotificationAsync(
             "Service Expense Logged",

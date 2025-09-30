@@ -95,51 +95,33 @@ public class AppService(
 
         var uri = $"/odata/{entity}?{queryString}";
 
-        Console.WriteLine($"=== ODATA REQUEST START ===");
-        Console.WriteLine($"Entity: {entity}");
-        Console.WriteLine($"URI: {uri}");
-        Console.WriteLine($"Token present: {!string.IsNullOrEmpty(token)}");
-
         HttpRequestMessage request = new(HttpMethod.Get, uri);
         request.Headers.Authorization = new("Bearer", token);
 
         var response = await httpClient.SendAsync(request);
         
-        Console.WriteLine($"Response Status: {response.StatusCode}");
-        Console.WriteLine($"Response Headers: {response.Headers}");
-        
         var responseContent = await response.Content.ReadAsStringAsync();
-        Console.WriteLine($"Response Content Length: {responseContent.Length}");
-        Console.WriteLine($"Response Content (first 500 chars): {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
 
         await HandleResponseErrorsAsync(response);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            Console.WriteLine("=== THROWING UNAUTHORIZED EXCEPTION ===");
             throw new UnauthorizedAccessException("Authentication required");
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine("=== RETURNING EMPTY ODATA RESULT DUE TO NON-SUCCESS STATUS ===");
             return new ODataResult<T> { Count = 0, Value = Enumerable.Empty<T>() };
         }
 
         try
         {
-            Console.WriteLine("=== ATTEMPTING JSON DESERIALIZATION ===");
-            // Reset the content stream for deserialization
             var jsonContent = responseContent;
             var result = JsonSerializer.Deserialize<ODataResult<T>>(jsonContent, JsonOptions);
-            Console.WriteLine($"=== JSON DESERIALIZATION SUCCESS - Items: {result?.Value?.Count()} ===");
             return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"=== JSON DESERIALIZATION ERROR ===");
-            Console.WriteLine($"Error: {ex.Message}");
-            Console.WriteLine($"Content being parsed: {responseContent}");
             throw;
         }
     }
@@ -1005,7 +987,7 @@ public class AppService(
         await HandleResponseErrorsAsync(response);
     }
 
-    public async Task<(string answer, IEnumerable<ProductSource> sources)> AskProductChatAsync(string question)
+    public async Task<(string answer, IEnumerable<SourceItem> productSources, IEnumerable<SourceItem> serviceSources, IEnumerable<SourceItem> orderSources, IEnumerable<SourceItem> serviceOrderSources)> AskProductChatAsync(string question)
     {
         var token = await authenticationStateProvider.GetBearerTokenAsync() ?? throw new Exception("Not authorized");
         HttpRequestMessage request = new(HttpMethod.Post, "/api/chat/products");
@@ -1014,11 +996,19 @@ public class AppService(
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
         var payload = await response.Content.ReadFromJsonAsync<ProductChatResponse>() ?? throw new Exception("Invalid response");
-        return (payload.Answer, payload.Sources ?? Enumerable.Empty<ProductSource>());
+        return (payload.Answer, 
+                payload.ProductSources?.Select(ps => new SourceItem(ps.Id, ps.Name, ps.Price, "Product")) ?? Enumerable.Empty<SourceItem>(),
+                payload.ServiceSources?.Select(ss => new SourceItem(ss.Id, ss.Name, ss.Price, ss.PricingType ?? "Service")) ?? Enumerable.Empty<SourceItem>(),
+                payload.OrderSources?.Select(os => new SourceItem(os.Id, os.OrderNumber, os.TotalAmount, $"Order ({os.Status})")) ?? Enumerable.Empty<SourceItem>(),
+                payload.ServiceOrderSources?.Select(sos => new SourceItem(sos.Id, sos.OrderNumber, sos.TotalAmount, $"Service Order ({sos.Status})")) ?? Enumerable.Empty<SourceItem>());
     }
 
-    public record ProductChatResponse(string Answer, IEnumerable<ProductSource>? Sources);
+    public record ProductChatResponse(string Answer, IEnumerable<ProductSource>? ProductSources, IEnumerable<ServiceSource>? ServiceSources, IEnumerable<OrderSource>? OrderSources, IEnumerable<ServiceOrderSource>? ServiceOrderSources);
     public record ProductSource(long? Id, string? Name, decimal? Price);
+    public record ServiceSource(long? Id, string? Name, decimal? Price, string? PricingType);
+    public record OrderSource(long? Id, string? OrderNumber, DateTime? OrderDate, string? Status, decimal? TotalAmount);
+    public record ServiceOrderSource(long? Id, string? OrderNumber, DateTime? OrderDate, string? Status, decimal? TotalAmount);
+    public record SourceItem(long? Id, string? Name, decimal? Price, string Type);
 
     // Notification methods
     public async Task<ODataResult<Notification>?> ListNotificationODataAsync(
@@ -1991,6 +1981,70 @@ public class AppService(
 
         var response = await httpClient.SendAsync(request);
         await HandleResponseErrorsAsync(response);
+    }
+
+    // Test methods commented out for production
+    /*
+    public async Task<List<Notification>?> TestGetNotificationsAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Get, "/api/testnotification/simple");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        var content = await response.Content.ReadAsStringAsync();
+        await HandleResponseErrorsAsync(response);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return new List<Notification>();
+        }
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<List<Notification>>(content, JsonOptions);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+
+    public async Task<string?> CreateTestNotificationsAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/testnotification/create-test-notifications");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        var content = await response.Content.ReadAsStringAsync();
+        await HandleResponseErrorsAsync(response);
+
+        return response.IsSuccessStatusCode ? content : null;
+    }
+    */
+
+    public async Task<string?> FixNotificationUserIdsAsync()
+    {
+        var token = await authenticationStateProvider.GetBearerTokenAsync()
+            ?? throw new Exception("Not authorized");
+
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/notification/fix-user-ids");
+        request.Headers.Authorization = new("Bearer", token);
+
+        var response = await httpClient.SendAsync(request);
+
+        var content = await response.Content.ReadAsStringAsync();
+        await HandleResponseErrorsAsync(response);
+
+        return response.IsSuccessStatusCode ? content : null;
     }
 
 }

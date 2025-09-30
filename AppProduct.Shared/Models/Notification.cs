@@ -6,7 +6,7 @@ public class Notification
     public string? Title { get; set; }
     public string? Message { get; set; }
     public string? Type { get; set; } // "Info", "Warning", "Error", "Success"
-    public long? UserId { get; set; } // null = system-wide notifications
+    public string? UserId { get; set; } // null = system-wide notifications
     public bool IsRead { get; set; } = false;
     public DateTime? CreatedDate { get; set; }
     public DateTime? ReadDate { get; set; }

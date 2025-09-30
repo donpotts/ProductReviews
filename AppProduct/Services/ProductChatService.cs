@@ -16,7 +16,7 @@ namespace AppProduct.Services;
 
 public interface IProductChatService
 {
-    Task<(string answer, IEnumerable<Product> sources)> AskAsync(string question, CancellationToken ct = default);
+    Task<(string answer, IEnumerable<Product> productSources, IEnumerable<Service> serviceSources, IEnumerable<Order> orderSources, IEnumerable<ServiceOrder> serviceOrderSources)> AskAsync(string question, CancellationToken ct = default);
 }
 
 public class ProductChatService(
@@ -126,6 +126,46 @@ public class ProductChatService(
         return sb.ToString().TrimEnd();
     }
 
+    private static string BuildOrderText(Order o)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Order Id: {o.Id}");
+        sb.AppendLine($"Order Number: {o.OrderNumber}");
+        sb.AppendLine($"Order Date: {o.OrderDate:yyyy-MM-dd}");
+        sb.AppendLine($"Status: {o.Status}");
+        sb.AppendLine($"Total Amount: {o.TotalAmount:C}");
+        sb.AppendLine($"Payment Method: {o.PaymentMethod}");
+        sb.AppendLine($"Items: {o.Items?.Count ?? 0}");
+        if (o.EstimatedDeliveryDate.HasValue)
+            sb.AppendLine($"Estimated Delivery: {o.EstimatedDeliveryDate:yyyy-MM-dd}");
+        if (o.ActualDeliveryDate.HasValue)
+            sb.AppendLine($"Delivered: {o.ActualDeliveryDate:yyyy-MM-dd}");
+        if (!string.IsNullOrEmpty(o.TrackingNumber))
+            sb.AppendLine($"Tracking: {o.TrackingNumber}");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string BuildServiceOrderText(ServiceOrder so)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Service Order Id: {so.Id}");
+        sb.AppendLine($"Order Number: {so.OrderNumber}");
+        sb.AppendLine($"Order Date: {so.OrderDate:yyyy-MM-dd}");
+        sb.AppendLine($"Status: {so.Status}");
+        sb.AppendLine($"Total Amount: {so.TotalAmount:C}");
+        sb.AppendLine($"Payment Method: {so.PaymentMethod}");
+        sb.AppendLine($"Services: {so.Items?.Count ?? 0}");
+        if (so.ScheduledStartDate.HasValue)
+            sb.AppendLine($"Scheduled Start: {so.ScheduledStartDate:yyyy-MM-dd}");
+        if (so.ScheduledEndDate.HasValue)
+            sb.AppendLine($"Scheduled End: {so.ScheduledEndDate:yyyy-MM-dd}");
+        if (so.RequiresOnsite)
+            sb.AppendLine($"On-site Required: Yes");
+        if (!string.IsNullOrEmpty(so.ContactPerson))
+            sb.AppendLine($"Contact: {so.ContactPerson}");
+        return sb.ToString().TrimEnd();
+    }
+
     private static bool IsServiceRelatedQuestion(string question)
     {
         var serviceKeywords = new[] 
@@ -137,6 +177,30 @@ public class ProductChatService(
         };
         
         return serviceKeywords.Any(keyword => question.ToLowerInvariant().Contains(keyword));
+    }
+
+    private static bool IsOrderRelatedQuestion(string question)
+    {
+        var orderKeywords = new[] 
+        { 
+            "order", "orders", "my order", "my orders", "purchase", "purchases", "bought", "buy",
+            "order status", "order history", "tracking", "delivery", "shipped", "invoice",
+            "receipt", "payment", "refund", "return", "when will", "where is", "order number"
+        };
+        
+        return orderKeywords.Any(keyword => question.ToLowerInvariant().Contains(keyword));
+    }
+
+    private static bool IsReviewRelatedQuestion(string question)
+    {
+        var reviewKeywords = new[] 
+        { 
+            "review", "reviews", "rating", "ratings", "feedback", "testimonial", "testimonials",
+            "customer feedback", "opinions", "what people say", "customer reviews", "star rating",
+            "quality", "satisfaction", "recommend", "recommendation"
+        };
+        
+        return reviewKeywords.Any(keyword => question.ToLowerInvariant().Contains(keyword));
     }
 
     private static float[] HashEmbed(string text, int dim = 32)
@@ -214,13 +278,13 @@ public class ProductChatService(
         return patterns.Any(p => q.Contains(p));
     }
 
-    public async Task<(string answer, IEnumerable<Product> sources)> AskAsync(string question, CancellationToken ct = default)
+    public async Task<(string answer, IEnumerable<Product> productSources, IEnumerable<Service> serviceSources, IEnumerable<Order> orderSources, IEnumerable<ServiceOrder> serviceOrderSources)> AskAsync(string question, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
 
         if(!_aiAvailable)
         {
-            return ("AI not available (invalid or missing key).", Enumerable.Empty<Product>());
+            return ("AI not available (invalid or missing key).", Enumerable.Empty<Product>(), Enumerable.Empty<Service>(), Enumerable.Empty<Order>(), Enumerable.Empty<ServiceOrder>());
         }
 
         bool lowestRequest = IsLowestPriceRequest(question);
@@ -405,28 +469,53 @@ public class ProductChatService(
             }
         }
 
-        var productContext = products.Any() ? string.Join("\n\n---\n\n", products.Select(p => BuildProductText(p))) : "";
-        var serviceContext = services.Any() ? string.Join("\n\n---\n\n", services.Select(s => BuildServiceText(s))) : "";
-        
-        var contextBlock = "";
-        if (productContext.Any() && serviceContext.Any())
+        // Get orders data for order-related questions
+        var orders = new List<Order>();
+        var serviceOrders = new List<ServiceOrder>();
+        if (IsOrderRelatedQuestion(question))
         {
-            contextBlock = $"PRODUCTS:\n{productContext}\n\n===SERVICES===\n{serviceContext}";
-        }
-        else if (productContext.Any())
-        {
-            contextBlock = productContext;
-        }
-        else if (serviceContext.Any())
-        {
-            contextBlock = serviceContext;
-        }
-        else
-        {
-            contextBlock = "(no product or service context available)";
+            try
+            {
+                orders = await db.Order
+                    .Include(o => o.Items)
+                    .OrderByDescending(o => o.OrderDate)
+                    .Take(10)
+                    .ToListAsync(ct);
+            }
+            catch
+            {
+                // ignore if orders not available
+            }
+
+            try
+            {
+                serviceOrders = await db.ServiceOrder
+                    .Include(so => so.Items)
+                    .Include(so => so.Expenses)
+                    .OrderByDescending(so => so.OrderDate)
+                    .Take(10)
+                    .ToListAsync(ct);
+            }
+            catch
+            {
+                // ignore if service orders not available
+            }
         }
 
-        var systemPrompt = "You are a helpful assistant for both products and services. Answer ONLY using the provided context. For questions about products, use the PRODUCTS section. For questions about services, use the SERVICES section. If the question is outside the provided data, reply: 'I can only answer questions about the products and services in our catalog.' Provide concise factual answers.";
+        var productContext = products.Any() ? string.Join("\n\n---\n\n", products.Select(p => BuildProductText(p))) : "";
+        var serviceContext = services.Any() ? string.Join("\n\n---\n\n", services.Select(s => BuildServiceText(s))) : "";
+        var orderContext = orders.Any() ? string.Join("\n\n---\n\n", orders.Select(o => BuildOrderText(o))) : "";
+        var serviceOrderContext = serviceOrders.Any() ? string.Join("\n\n---\n\n", serviceOrders.Select(so => BuildServiceOrderText(so))) : "";
+        
+        var contextParts = new List<string>();
+        if (!string.IsNullOrEmpty(productContext)) contextParts.Add($"PRODUCTS:\n{productContext}");
+        if (!string.IsNullOrEmpty(serviceContext)) contextParts.Add($"SERVICES:\n{serviceContext}");
+        if (!string.IsNullOrEmpty(orderContext)) contextParts.Add($"ORDERS:\n{orderContext}");
+        if (!string.IsNullOrEmpty(serviceOrderContext)) contextParts.Add($"SERVICE ORDERS:\n{serviceOrderContext}");
+        
+        var contextBlock = contextParts.Any() ? string.Join("\n\n===\n\n", contextParts) : "(no context available)";
+
+        var systemPrompt = "You are a helpful assistant for products, services, and orders. You MUST use the provided context data to answer questions. When someone asks about services, use the SERVICES section. When someone asks about products, use the PRODUCTS section. When someone asks about orders, use the ORDERS and SERVICE ORDERS sections. ALWAYS provide helpful answers using the context data provided. Only say you cannot answer if no relevant context is provided.";
         if (lowestRequest && lowestProduct != null)
         {
             systemPrompt += " If the user asks for the lowest priced product, respond ONLY with that single product's name, Id and price (and optionally a brief spec) drawn from context.";
@@ -435,36 +524,36 @@ public class ProductChatService(
         {
             systemPrompt += " If the user asks for best-selling or most popular products, list the products with their names, Ids, and prices. If based on order data, mention sales performance; if based on ratings, mention customer ratings. Be concise and factual.";
         }
-        var prompt = $"<system>\n{systemPrompt}\n</system>\n<context>\n{contextBlock}\n</context>\n<user_question>\n{question}\n</user_question>\n<instructions>Limit answer to product facts. Do not speculate. Cite product Ids mentioned.</instructions>";
+        var prompt = $"<system>\n{systemPrompt}\n</system>\n<context>\n{contextBlock}\n</context>\n<user_question>\n{question}\n</user_question>\n<instructions>Use the provided context to answer about products and services. Do not speculate. Cite IDs when mentioned.</instructions>";
 
         string answer;
         try
         {
             var history = new ChatHistory();
-            history.AddSystemMessage(systemPrompt + " Context will follow.");
-            history.AddUserMessage(prompt);
+            history.AddSystemMessage(systemPrompt);
+            history.AddUserMessage($"Context:\n{contextBlock}\n\nQuestion: {question}");
             var result = await chatService.GetChatMessageContentAsync(history, cancellationToken: ct);
             answer = result.Content ?? "(no answer)";
         }
         catch (HttpOperationException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
         {
             _aiAvailable = false;
-            return ("AI not available (invalid key).", products);
+            return ("AI not available (invalid key).", products, services, orders, serviceOrders);
         }
         catch
         {
             _aiAvailable = false;
-            return ("AI not available (error calling model).", products);
+            return ("AI not available (error calling model).", products, services, orders, serviceOrders);
         }
 
-        if(!products.Any() || answer.Contains("I don't know", StringComparison.OrdinalIgnoreCase))
+        if((!products.Any() && !services.Any() && !orders.Any() && !serviceOrders.Any()) || answer.Contains("I don't know", StringComparison.OrdinalIgnoreCase))
         {
-            answer = "I can only answer questions about the products in the catalog.";
+            answer = "I can only answer questions about the products, services, and orders in our system.";
         }
         var forbidden = new []{"politics","weather","news","sports"};
         if(forbidden.Any(f => answer.Contains(f, StringComparison.OrdinalIgnoreCase)))
         {
-            answer = "I can only answer questions about the products in the catalog.";
+            answer = "I can only answer questions about the products, services, and orders in our system.";
         }
 
         if (!_embeddingAvailable)
@@ -545,7 +634,7 @@ public class ProductChatService(
             }
         }
 
-        return (answer, products);
+        return (answer, products, services, orders, serviceOrders);
     }
 }
 #pragma warning restore SKEXP0001, CS0618
